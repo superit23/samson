@@ -1,17 +1,15 @@
+from distutils import dep_util
 from samson.core.base_object import BaseObject
+from samson.utilities.bytes import Bytes
 from enum import Enum as _Enum, IntFlag as _IntFlag
+from copy import deepcopy
+import linecache
+import inspect
 import math
 
-SIZE_ENC = 2
 
 def int_to_bytes(val):
     return int.to_bytes(val, (val.bit_length() + 7) // 8, 'big')
-
-def pack_len(val):
-    return int.to_bytes(len(val), SIZE_ENC, 'big')
-
-def unpack_len(data):
-    return data[SIZE_ENC:], int.from_bytes(data[:SIZE_ENC], 'big')
 
 
 class ByteWriter(object):
@@ -53,7 +51,8 @@ class BitConsumer(object):
 
     def is_done(self):
         return self.idx >= len(self.data)
-    
+
+
     def next(self, bits):
         if self.idx < len(self.data):
             result    = self.data[self.idx:self.idx+bits]
@@ -65,63 +64,136 @@ class BitConsumer(object):
             return b'', 0
 
 
-class Subscriptable(object):
-    def __getitem__(self, idx):
-        return self.__class__(self.val[idx])
+class SizableMeta(type):
+    SIZABLE_CLS = None
+
+    def __getitem__(cls, size):
+        class Inst(cls.SIZABLE_CLS):
+            pass
+
+        Inst.__name__ = f'{cls.__name__}[{size}]'
+        Inst.SIZE = size
+
+        if hasattr(Inst, "_construct"):
+            Inst._construct()
+        return Inst
 
 
-class TypedClass(type):
-    def __getattribute__(self, __name: str):
-        if __name in self.__annotations__:
-            return self.__annotations__[__name]
-        return super().__getattribute__(__name)
+class SubtypableMeta(type):
+    TYPED_CLS = None
+
+    def __getitem__(cls, l_type):
+        class Inst(cls.TYPED_CLS or cls):
+            pass
+
+        Inst.__name__ = f'{cls.__name__}[{l_type.__name__}]'
+        Inst.SUBTYPE = l_type
+        return Inst
 
 
-class Primitive(object):
-    def native(self):
-        return self.val
+class SubtypedValueMeta(type):
+    TYPED_CLS = None
+
+    def __getitem__(cls, l_type):
+        class Inst(cls.TYPED_CLS or cls):
+            val: l_type
+
+        Inst.__name__ = f'{cls.__name__}[{l_type.__name__}]'
+        Inst.SUBTYPE = l_type
+        return Inst
 
 
-class Serializable(BaseObject):
+
+def reconstruct(attr_dict):
+    params    = ', '.join([f"{k}={v}" for k,v in attr_dict.items()])
+    filename  = f'<dynamic-{Bytes.random(8).hex().decode()}>'
+    func_name = f'dynamic_{Bytes.random(8).hex().decode()}'
+
+    source = f'def {func_name}({params}):\n    return True'
+    code   = compile(source, filename, 'exec')
+
+    l = {}
+    exec(code, {}, l)
+
+    lines = [line + '\n' for line in source.splitlines()]
+
+    linecache.cache[filename] = (len(source), None, lines, filename)
+    return inspect.signature(l[func_name])
+
+
+class SizedSerializable(BaseObject):
+    SIZE = 2
+    FORCE_TYPE = True
+
     def __init__(self, *args, **kwargs) -> None:
-        for (k, t), v in zip(self.__annotations__.items(), args):
-            if type(v) is not t:
+        self.parent = kwargs.get("parent", None)
+
+
+        def process(k, v, t):
+            if self.FORCE_TYPE and type(v) is not t:
                 v = t(v)
 
             setattr(self, k, v)
 
-        for k, v in kwargs.items():
+            if hasattr(v, 'parent'):
+                setattr(v, 'parent', self)
+
+
+        # Generate a signature
+        sig = reconstruct({k:getattr(self.__class__, k, None) for k in self.__annotations__.keys()})
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+
+        # Line up and process *args
+        for (k, t), v in zip(self.__annotations__.items(), bound.args):
+            process(k, v, t)
+
+
+        # Process **kwargs
+        for k, v in bound.kwargs.items():
             t = self.__annotations__[k]
-            if type(v) is not t:
-                v = t(v)
+            process(k, v, t)
 
-            setattr(self, k, v)
+
+
+
+    @classmethod
+    def pack_len(cls, val):
+        return int.to_bytes(len(val), cls.SIZE, 'big')
+
+
+    @classmethod
+    def unpack_len(cls, data):
+        return data[cls.SIZE:], int.from_bytes(data[:cls.SIZE], 'big')
 
 
     def serialize(self):
         data = b''
-        for _,v in self.__dict__.items():
-            data += v.serialize()
+        for k, v in self.__dict__.items():
+            if k != "parent":
+                data += v.serialize()
         
         return data
 
 
     @classmethod
-    def deserialize(cls, data: bytes):
+    def deserialize(cls, data: bytes, state: dict=None):
         if hasattr(data, 'native'):
             data = data.native()
         
-        return cls._deserialize(data)
+        return cls._deserialize(data, state)
 
 
     @classmethod
-    def _deserialize(cls, data):
-        objs = []
+    def _deserialize(cls, data, state: dict=None):
+        objs = {}
+        objs2 = []
         for k, v in cls.__annotations__.items():
-            data, obj = v.deserialize(data)
-            objs.append(obj)
+            data, obj = v.deserialize(data, state=objs)
+            objs[k] = obj
+            objs2.append(obj)
 
-        return data, cls(*objs)
+        return data, cls(*objs2)
 
 
     @classmethod
@@ -135,10 +207,6 @@ class Serializable(BaseObject):
 
     def __bytes__(self):
         return self.serialize()
-    
-
-    def __eq__(self, other):
-        return type(self) == type(other) and self.__dict__ == other.__dict__
 
 
     def __iter__(self):
@@ -184,293 +252,474 @@ class Serializable(BaseObject):
             s = self.val
         
         else:
-            return self.native() == o
+            return o == self.native()
+
+        if type(s) == type(o) and hasattr(s, '__dict__'):
+            sd = deepcopy(s.__dict__)
+            od = deepcopy(o.__dict__)
+
+            del sd['parent']
+            del od['parent']
+
+            if sd == od:
+                return True
+
+        return (not issubclass(type(s), SizedSerializable) and s == o)
+
+
+    def __reprdir__(self):
+        return set(super().__reprdir__()).difference({"parent"})
+
+
+    @classmethod
+    def _construct(cls):
+        class Subscriptable(object):
+            def __getitem__(self, idx):
+                return self.__class__(self.val[idx])
         
-        return (not issubclass(type(s), Serializable) and s == o) or (type(s) == type(o) and hasattr(s, '__dict__') and s.__dict__ == o.__dict__)
+        cls.Subscriptable = Subscriptable
 
 
-class SubtypableMeta(type):
-    TYPED_CLS = None
+        class TypedClass(type):
+            def __getattribute__(self, __name: str):
+                if __name in self.__annotations__:
+                    return self.__annotations__[__name]
+                return super().__getattribute__(__name)
+        
+        cls.TypedClass = TypedClass
 
-    def __getitem__(cls, l_type):
-        class Inst(cls.TYPED_CLS or cls):
+
+        class Primitive(object):
+            def native(self):
+                return self.val
+            
+            def __bool__(self):
+                return bool(self.val)
+
+
+        cls.Primitive = Primitive
+
+
+        class Subtypable(cls, metaclass=SubtypableMeta):
             pass
 
-        Inst.__name__ = f'{cls.__name__}[{l_type.__name__}]'
-        Inst.SUBTYPE = l_type
-        return Inst
+        cls.Subtypable = Subtypable
 
 
-class Subtypable(Serializable, metaclass=SubtypableMeta):
-    pass
-
-
-
-class SizableMeta(type):
-    SIZABLE_CLS = None
-
-    def __getitem__(cls, size):
-        class Inst(cls.SIZABLE_CLS):
+        class Sizable(cls, metaclass=SizableMeta):
             pass
 
-        Inst.__name__ = f'{cls.__name__}[{size}]'
-        Inst.SIZE = size
-        return Inst
+        cls.Sizable = Sizable
 
 
 
-class Sizable(Serializable, metaclass=SizableMeta):
-    pass
+        class DependsMeta(type):
+            TYPED_CLS = None
+
+            def __getitem__(cls, params):
+                l_type, selector, default = params
+
+                class Inst(cls.TYPED_CLS or cls):
+                    val: l_type
 
 
-class FixedInt(Primitive, Serializable):
-    SIZE   = None
-    SIGNED = False
-    val: int
-
-    def __init__(self, val) -> None:
-        super().__init__(val)
-        if self.val.bit_length() > self.SIZE:
-            raise OverflowError("Int too large")
-
-    def serialize(self):
-        return int.to_bytes(self.val, self.SIZE // 8, 'big', signed=self.SIGNED)
-
-    @classmethod
-    def _deserialize(cls, data):
-        return data[cls.SIZE // 8:], cls(int.from_bytes(data[:cls.SIZE // 8], 'big', signed=cls.SIGNED))
-
-
-    def __int__(self):
-        return self.val
+                Inst.__name__ = f'{cls.__name__}[{l_type.__name__}]'
+                Inst.SUBTYPE  = l_type
+                Inst.SELECTOR = selector
+                Inst.DEFAULT  = default
+                return Inst
 
 
 
-class SignedFixedInt(FixedInt):
-    SIGNED = True
+        class Depends(cls, metaclass=DependsMeta):
+            SUBTYPE  = None
+            SELECTOR = None
+            DEFAULT  = None
+
+            def serialize(self):
+                if self.SELECTOR(self.parent.__dict__):
+                    return self.val.serialize()
+                else:
+                    return b''
 
 
-class Int8(SignedFixedInt):
-    SIZE = 8
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                if cls.SELECTOR(cls, state):
+                    return cls.SUBTYPE._deserialize(data)
+                else:
+                    return data, cls.DEFAULT
 
 
-class Int16(SignedFixedInt):
-    SIZE = 16
+        cls.Depends = Depends
 
 
-class Int32(SignedFixedInt):
-    SIZE = 32
+
+        class SelectorMeta(type):
+            TYPED_CLS = None
+
+            def __getitem__(cls, selector):
+
+                class Inst(cls.TYPED_CLS or cls):
+                    pass
 
 
-class Int64(SignedFixedInt):
-    SIZE = 64
+                Inst.__name__ = f'{cls.__name__}'
+                Inst.SELECTOR   = selector
+                Inst.FORCE_TYPE = False
+                return Inst
 
 
-class UInt8(FixedInt):
-    SIZE = 8
+
+        class Selector(cls, metaclass=SelectorMeta):
+            SELECTOR = None
+            val: object
+
+            def serialize(self):
+                return self.val.serialize()
 
 
-class UInt16(FixedInt):
-    SIZE = 16
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                return cls.SELECTOR(cls, state)._deserialize(data)
 
 
-class UInt32(FixedInt):
-    SIZE = 32
+        cls.Selector = Selector
 
 
-class UInt64(FixedInt):
-    SIZE = 64
+        class FixedInt(Primitive, cls):
+            SIZE   = None
+            SIGNED = False
+            val: int
+
+            def __init__(self, val) -> None:
+                super().__init__(val)
+                if self.val.bit_length() > self.SIZE:
+                    raise OverflowError("Int too large")
+
+            def serialize(self):
+                return int.to_bytes(self.val, self.SIZE // 8, 'big', signed=self.SIGNED)
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                return data[cls.SIZE // 8:], cls(int.from_bytes(data[:cls.SIZE // 8], 'big', signed=cls.SIGNED))
 
 
-class UInt(Primitive, Sizable):
-    SIGNED = False
-    SIZABLE_CLS = FixedInt
-    val: int
-
-    def serialize(self):
-        val = int_to_bytes(self.val)
-        return pack_len(val) + val
+            def __int__(self):
+                return self.val
 
 
-    @classmethod
-    def _deserialize(cls, data):
-        data, val_len = unpack_len(data)
-        val = int.from_bytes(data[:val_len], 'big', signed=cls.SIGNED)
-        return data[val_len:], val
+        cls.FixedInt = FixedInt
 
 
-    def __int__(self):
-        return self.val
 
-
-class Int(Sizable):
-    SIGNED = True
-    SIZABLE_CLS = SignedFixedInt
-
-
-class List(Subtypable):
-    SUBTYPE = None
-    val: list
-
-    def __init__(self, val=None) -> None:
-        val  = [] if val is None else val
-        args = [a if type(a) is self.SUBTYPE else self.SUBTYPE(a) for a in val]
-        super().__init__(args)
-
-    def serialize(self):
-        data = b''
-        for v in self.val:
-            data += v.serialize()
+        class SignedFixedInt(FixedInt):
+            SIGNED = True
         
-        return pack_len(self.val) + data
+        cls.SignedFixedInt = SignedFixedInt
 
 
-    @classmethod
-    def _deserialize(cls, data):
-        objs = []
-        data, val_len = unpack_len(data)
-        for _ in range(val_len):
-            data, obj = cls.SUBTYPE.deserialize(data)
-            objs.append(obj)
-    
-        return data, cls(objs)
-    
-
-    def native(self):
-        return [elem.native() for elem in self.val]
+        class Int8(SignedFixedInt):
+            SIZE = 8
+        
+        cls.Int8 = Int8
 
 
-    def __iter__(self):
-        return self.val.__iter__()
+        class Int16(SignedFixedInt):
+            SIZE = 16
+        
+        cls.Int16 = Int16
 
 
-    def __getitem__(self, idx):
-        return self.val[idx]
+        class Int32(SignedFixedInt):
+            SIZE = 32
+        
+        cls.Int32 = Int32
 
 
-    def __len__(self):
-        return len(self.val)
+        class Int64(SignedFixedInt):
+            SIZE = 64
+        
+        cls.Int64 = Int64
 
 
-    def __delitem__(self, idx):
-        del self.val[idx]
+        class UInt8(FixedInt):
+            SIZE = 8
+        
+        cls.UInt8 = UInt8
 
 
-    def append(self, item):
-        if type(item) is not self.SUBTYPE:
-            raise TypeError
-
-        self.val.append(item)
-
+        class UInt16(FixedInt):
+            SIZE = 16
+        
+        cls.UInt16 = UInt16
 
 
-class FixedBytes(Primitive, Serializable, Subscriptable):
-    SIZE = None
-    val: bytes
-
-    def __init__(self, val, **kwargs) -> None:
-        if len(val) > self.SIZE:
-            raise OverflowError('Bytes value too large')
-
-        super().__init__(val, **kwargs)
-
-    def serialize(self):
-        return b'\x00'*(self.SIZE-len(self.val)) + self.val
-
-    @classmethod
-    def _deserialize(cls, data):
-        return data[cls.SIZE:], cls(data[:cls.SIZE])
+        class UInt32(FixedInt):
+            SIZE = 32
+        
+        cls.UInt32 = UInt32
 
 
-class Bytes(Primitive, Sizable, Subscriptable):
-    SIZABLE_CLS = FixedBytes
-    val: bytes
-
-    def serialize(self):
-        return pack_len(self.val) + self.val
-
-    @staticmethod
-    def _deserialize(data):
-        data, val_len = unpack_len(data)
-        return data[val_len:], Bytes(data[:val_len])
+        class UInt64(FixedInt):
+            SIZE = 64
+        
+        cls.UInt64 = UInt64
 
 
-class HungryBytes(Primitive, Serializable):
-    val: bytes
+        class UInt(Primitive, Sizable):
+            SIGNED = False
+            SIZABLE_CLS = FixedInt
+            val: int
 
-    def serialize(self):
-        return self.val
-
-    @staticmethod
-    def _deserialize(data):
-        return b'', HungryBytes(data)
-
+            def serialize(self):
+                val = int_to_bytes(self.val)
+                return self.pack_len(val) + val
 
 
-class TypedEnum(Serializable, _Enum):
-
-    def __init__(self, val) -> None:
-        pass
-
-    def __repr__(self):
-        return _Enum.__repr__(self)
-
-    def __str__(self):
-        return _Enum.__str__(self)
-
-    def __boformat__(self, *args, **kwargs):
-        return _Enum.__repr__(self)
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                data, val_len = cls.unpack_len(data)
+                val = int.from_bytes(data[:val_len], 'big', signed=cls.SIGNED)
+                return data[val_len:], val
 
 
-    @property
-    def val(self):
-        return self.SUBTYPE(self.value)
+            def __int__(self):
+                return self.val
+        
+        cls.UInt = UInt
 
 
-    def serialize(self):
-        return self.val.serialize()
-
-    @classmethod
-    def _deserialize(cls, data):
-        left_over, i8 = cls.SUBTYPE.deserialize(data)
-        return left_over, cls(i8.native())
+        class Int(UInt):
+            SIGNED = True
+            SIZABLE_CLS = SignedFixedInt
+        
+        cls.Int = Int
 
 
-class Enum(Subtypable):
-    TYPED_CLS = TypedEnum
+        class List(Subtypable):
+            SUBTYPE = None
+            val: list
+
+            def __init__(self, val=None) -> None:
+                val  = [] if val is None else val
+                args = [a if type(a) is self.SUBTYPE else self.SUBTYPE(a) for a in val]
+                super().__init__(args)
+
+            def serialize(self):
+                data = b''
+                for v in self.val:
+                    data += v.serialize()
+                
+                return self.pack_len(self.val) + data
+
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                objs = []
+                data, val_len = cls.unpack_len(data)
+                for _ in range(val_len):
+                    data, obj = cls.SUBTYPE.deserialize(data)
+                    objs.append(obj)
+            
+                return data, cls(objs)
+            
+
+            def native(self):
+                return [elem.native() for elem in self.val]
+
+
+            def __iter__(self):
+                return self.val.__iter__()
+
+
+            def __getitem__(self, idx):
+                return self.val[idx]
+
+
+            def __len__(self):
+                return len(self.val)
+
+
+            def __delitem__(self, idx):
+                del self.val[idx]
+
+
+            def append(self, item):
+                if type(item) is not self.SUBTYPE:
+                    raise TypeError
+
+                self.val.append(item)
+
+
+        cls.List = List
+
+
+        class FixedBytes(Primitive, cls, Subscriptable):
+            SIZE = None
+            val: bytes
+
+            def __init__(self, val, **kwargs) -> None:
+                if len(val) > self.SIZE:
+                    raise OverflowError('Bytes value too large')
+
+                super().__init__(val, **kwargs)
+
+            def serialize(self):
+                return b'\x00'*(self.SIZE-len(self.val)) + self.val
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                return data[cls.SIZE:], cls(data[:cls.SIZE])
+        
+        cls.FixedBytes = FixedBytes
+
+
+        class Bytes(Primitive, Sizable, Subscriptable):
+            SIZABLE_CLS = FixedBytes
+            val: bytes
+
+            def serialize(self):
+                return self.pack_len(self.val) + self.val
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                data, val_len = cls.unpack_len(data)
+                return data[val_len:], Bytes(data[:val_len])
+        
+
+        cls.Bytes = Bytes
+
+
+        class HungryBytes(Primitive, cls):
+            val: bytes
+
+            def serialize(self):
+                return self.val
+
+            @staticmethod
+            def _deserialize(data, state=None):
+                return b'', HungryBytes(data)
+        
+
+        cls.HungryBytes = HungryBytes
 
 
 
-class FixedIntFlag(Serializable, _IntFlag):
-    def __init__(self, val) -> None:
-        pass
+        class TypedEnum(cls, _Enum):
 
-    @property
-    def val(self):
-        return UInt[self.SIZE](self._value_)
+            def __init__(self, val) -> None:
+                pass
 
-    def __repr__(self):
-        return _IntFlag.__repr__(self)
+            def __repr__(self):
+                return _Enum.__repr__(self)
 
-    def __str__(self):
-        return _IntFlag.__str__(self)
+            def __str__(self):
+                return _Enum.__str__(self)
 
-    def __boformat__(self, *args, **kwargs):
-        return _IntFlag.__repr__(self)
+            def __boformat__(self, *args, **kwargs):
+                return _Enum.__repr__(self)
 
 
-    def serialize(self):
-        return self.val.serialize()
+            @property
+            def val(self):
+                return self.SUBTYPE(self.value)
 
 
-    @classmethod
-    def _deserialize(cls, data):
-        left_over, i8 = UInt[cls.SIZE].deserialize(data)
-        return left_over, cls(i8.native())
+            def serialize(self):
+                return self.val.serialize()
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                left_over, i8 = cls.SUBTYPE.deserialize(data)
+                return left_over, cls(i8.native())
+        
+        cls.TypedEnum = TypedEnum
 
 
-class IntFlag(Sizable):
-    SIZABLE_CLS = FixedIntFlag
+        class Enum(Subtypable):
+            TYPED_CLS = TypedEnum
+        
+
+        cls.Enum = Enum
+
+
+
+        class FixedIntFlag(cls, _IntFlag):
+            def __init__(self, val) -> None:
+                pass
+
+            @property
+            def val(self):
+                return UInt[self.SIZE](self._value_)
+
+            def __repr__(self):
+                return _IntFlag.__repr__(self)
+
+            def __str__(self):
+                return _IntFlag.__str__(self)
+
+            def __boformat__(self, *args, **kwargs):
+                return _IntFlag.__repr__(self)
+
+
+            def serialize(self):
+                return self.val.serialize()
+
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                left_over, i8 = UInt[cls.SIZE].deserialize(data)
+                return left_over, cls(i8.native())
+        
+
+        cls.FixedIntFlag = FixedIntFlag
+
+
+        class IntFlag(Sizable):
+            SIZABLE_CLS = FixedIntFlag
+        
+
+        cls.IntFlag = IntFlag
+
+
+        class Opaque(cls, metaclass=SubtypedValueMeta):
+            SUBTYPE = None
+
+            def serialize(self):
+                return Bytes(self.val.serialize()).serialize()
+
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                data, obj = Bytes._deserialize(data)
+                return data, cls.SUBTYPE.from_bytes(obj)
+
+
+        cls.Opaque = Opaque
+
+
+        class Null(cls):
+            val: None
+
+            def __init__(self, val=None, **kwargs) -> None:
+                pass
+
+            def serialize(self):
+                return b''
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                return data, Null()
+
+
+        cls.Null = Null
+
+
+
+
+class Serializable(BaseObject, metaclass=SizableMeta):
+    SIZABLE_CLS = SizedSerializable
 
 
 class Router(BaseObject):

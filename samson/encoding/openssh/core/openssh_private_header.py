@@ -51,7 +51,7 @@ class OpenSSHPrivateHeader(object):
     def __init__(self, header: bytes, encryption: bytes, kdf: bytes, kdf_params: KDFParams, num_keys: int):
         """
         Parameters:
-            header          (bytes): Header value to include. Should be b'openssh-v1\x00'
+            header         (bytes): Header value to include. Should be b'openssh-v1\x00'
             encryption     (bytes): Encryption algorithm to use.
             kdf            (bytes): KDF to use.
             kdf_params (KDFParams): Parameters for the KDF.

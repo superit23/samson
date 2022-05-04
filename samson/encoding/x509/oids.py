@@ -177,7 +177,7 @@ class X509AccessDescriptorType(_OID):
     def prefix():
         return 'AD_'
 
-    OSCP          = '1.3.6.1.5.5.7.48.1'
+    OCSP          = '1.3.6.1.5.5.7.48.1'
     CA_ISSUER     = '1.3.6.1.5.5.7.48.2'
     TIMESTAMPING  = '1.3.6.1.5.5.7.48.3'
     CA_REPOSITORY = '1.3.6.1.5.5.7.48.5'

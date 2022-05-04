@@ -450,7 +450,7 @@ class X509BasicConstraints(X509Extension):
         self.is_ca    = is_ca
         self.path_len = path_len
         super().__init__(critical=critical)
-    
+
     
     def __reprdir__(self):
         return ['is_ca', 'path_len']
@@ -505,7 +505,7 @@ class X509KeyUsage(X509Extension):
     def parse(value_bytes: bytes, critical: bool) -> 'X509KeyUsage':
         ext_val, _ = decoder.decode(value_bytes, asn1Spec=rfc5280.KeyUsage())
 
-        return X509KeyUsage(key_usage=X509KeyUsageFlag(int(ext_val)), critical=critical)
+        return X509KeyUsage(key_usage=X509KeyUsageFlag.parse(ext_val), critical=critical)
 
 
 
@@ -813,14 +813,14 @@ class X509AuthorityKeyIdentifier(X509Extension):
 
         key_identifier = bytes(ext_val['keyIdentifier']) if ext_val['keyIdentifier'].isValue else None
         authority_cert_issuer = [GeneralName.parse_recursive(name) for name in ext_val['authorityCertIssuer']]
-        authority_cert_serial_number = int(ext_val['authorityCertSerialNumber']) if ext_val['authorityCertSerialNumber'].isValue else None
+        authority_cert_serial_number = ext_val['authorityCertSerialNumber'].asInteger() if ext_val['authorityCertSerialNumber'].isValue else None
 
         return X509AuthorityKeyIdentifier(key_identifier=key_identifier, authority_cert_issuer=authority_cert_issuer, authority_cert_serial_number=authority_cert_serial_number, critical=critical)
 
 
 
 class X509AccessDescription(BaseObject):
-    def __init__(self, access_method: X509AccessDescriptorType, access_location: 'str') -> None:
+    def __init__(self, access_method: X509AccessDescriptorType, access_location: GeneralName) -> None:
         self.access_method   = access_method
         self.access_location = access_location
 
@@ -1175,12 +1175,12 @@ class X509PolicyConstraints(X509Extension):
 
         require_explicit_policy = None
         if ext_val['requireExplicitPolicy'].isValue:
-            require_explicit_policy = int(ext_val['requireExplicitPolicy'])
+            require_explicit_policy = ext_val['requireExplicitPolicy'].asInteger()
 
 
         inhibit_policy_mapping = None
         if ext_val['inhibitPolicyMapping'].isValue:
-            inhibit_policy_mapping = int(ext_val['inhibitPolicyMapping'])
+            inhibit_policy_mapping = ext_val['inhibitPolicyMapping'].asInteger()
 
 
         return X509PolicyConstraints(require_explicit_policy=require_explicit_policy, inhibit_policy_mapping=inhibit_policy_mapping, critical=critical)
@@ -1249,7 +1249,7 @@ class X509MicrosoftCSCAVersion(X509Extension):
     @staticmethod
     def parse(value_bytes: bytes, critical: bool) -> 'X509MicrosoftCSCAVersion':
         ext_val, _ = decoder.decode(value_bytes)
-        return X509MicrosoftCSCAVersion(version=int(ext_val), critical=critical)
+        return X509MicrosoftCSCAVersion(version=ext_val.asInteger(), critical=critical)
 
 
 class X509MicrosoftCSPreviousHash(X509Extension):
@@ -1307,11 +1307,11 @@ class X509MicrosoftCertificateTemplateV2(X509Extension):
     def parse(value_bytes: bytes, critical: bool) -> 'X509MicrosoftCertificateTemplate':
         ext_val, _ = decoder.decode(value_bytes, asn1Spec=CertificateTemplateOID())
         template_id   = str(ext_val['templateID'] )
-        major_version = int(ext_val['templateMajorVersion'])
+        major_version = ext_val['templateMajorVersion'].asInteger()
 
         minor_version = None
         if ext_val['templateMinorVersion'].isValue:
-            minor_version = int(ext_val['templateMinorVersion'])
+            minor_version = ext_val['templateMinorVersion'].asInteger()
 
         return X509MicrosoftCertificateTemplateV2(template_id=template_id, major_version=major_version, minor_version=minor_version, critical=critical)
 
@@ -1366,7 +1366,7 @@ class X509NetscapeCertificateType(X509Extension):
     def parse(value_bytes: bytes, critical: bool) -> 'X509NetscapeCertificateType':
         ext_val, _ = decoder.decode(value_bytes)
 
-        return X509NetscapeCertificateType(cert_type=X509NetscapeCertTypeFlag(int(ext_val)), critical=critical)
+        return X509NetscapeCertificateType(cert_type=X509NetscapeCertTypeFlag.parse(ext_val), critical=critical)
 
 
 # I honestly cannot find the last two bits
@@ -1424,7 +1424,7 @@ class X509EntrustVersionInfo(X509Extension):
 
         eif = None
         if ext_val['entrustInfoFlags'].isValue:
-            eif = X509EntrustInfoFlag(int(ext_val['entrustInfoFlags']))
+            eif = X509EntrustInfoFlag.parse(ext_val['entrustInfoFlags'])
 
         return X509EntrustVersionInfo(entrust_version=ver, entrust_info_flags=eif, critical=critical)
 
@@ -1438,7 +1438,7 @@ class IntExtension(X509Extension):
     @classmethod
     def parse(cls, value_bytes: bytes, critical: bool) -> 'IntExtension':
         ext_val, _ = decoder.decode(value_bytes)
-        return cls(**{cls.DATA_ATTR: int(ext_val), 'critical': critical})
+        return cls(**{cls.DATA_ATTR: ext_val.asInteger(), 'critical': critical})
 
 
 

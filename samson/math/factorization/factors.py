@@ -178,8 +178,11 @@ class Factors(BaseObject):
         return chain(*[self.combinations(i) for i in range(1, self.number_of_factors()+1)])
 
 
-    def all_divisors(self) -> set:
-        return {c.recombine() for c in self.all_combinations()}.union({1})
+    def all_divisors(self, recombine: bool=True) -> set:
+        if recombine:
+            return {c.recombine() for c in self.all_combinations()}.union({1})
+        else:
+            return set(self.all_combinations()).union({Factors({1: 1})})
     
 
     def square_free(self) -> 'Factors':

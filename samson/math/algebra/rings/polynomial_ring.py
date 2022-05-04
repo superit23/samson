@@ -2,8 +2,9 @@ from samson.math.algebra.rings.ring import RingElement
 from samson.math.algebra.rings.ring import Ring
 from samson.utilities.exceptions import CoercionException
 from samson.math.polynomial import Polynomial
-from samson.math.symbols import Symbol
-from samson.math.general import random_int
+from samson.math.symbols import Symbol, oo
+from samson.math.general import random_int, is_prime
+from samson.math.factorization.general import factor
 
 
 class PolynomialRing(Ring):
@@ -41,9 +42,7 @@ class PolynomialRing(Ring):
 
 
     def order(self) -> int:
-        from samson.math.symbols import oo
         return oo
-
 
 
     def __reprdir__(self):
@@ -120,7 +119,7 @@ class PolynomialRing(Ring):
 
         Parameters:
             x (int): Element ordinality.
-        
+
         Returns:
            Polynomial: The `x`-th element.
         """
@@ -187,6 +186,25 @@ class PolynomialRing(Ring):
             sparsity += 1
 
 
+    def number_of_irreducible(self, n: int) -> int:
+        """
+        Determine the number of irreducible polynomials over a FiniteField.
+
+        Parameters:
+            n (int): The desired degree of polynomials.
+
+        Returns:
+            int: Number of irreducible polynomials of degree `n`.
+        """
+        if is_prime(self.ring.characteristic()):
+            total = 0
+            for d in factor(n).divisors(False):
+                total += d.mobius()*(self.ring.order())**(n // d.recombine())
+
+            return total // n
+        else:
+            raise NotImplementedError(f"Not implemented for {self.ring}")
+
 
     def random(self, size: object) -> object:
         """
@@ -194,7 +212,7 @@ class PolynomialRing(Ring):
 
         Parameters:
             size (int/RingElement): The maximum ordinality/element (non-inclusive).
-    
+
         Returns:
             RingElement: Random element of the algebra.
         """
