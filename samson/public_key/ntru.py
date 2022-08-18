@@ -20,7 +20,7 @@ def all_coeffs(poly: Polynomial) -> list:
 
     Parameters:
         poly (Polynomial): Polynomial.
-    
+
     Returns:
         list: Integer vector.
     """
@@ -34,7 +34,7 @@ def minimize_poly(poly: Polynomial, mod: int) -> list:
     Parameters:
         poly (Polynomial): Polynomial.
         mod         (int): Modulus.
-    
+
     Returns:
         list: Coefficient list.
     """
@@ -61,7 +61,7 @@ def decode_bytes(in_bytes: bytes) -> list:
 
     Parameters:
         in_bytes (bytes): Bytes to decode.
-    
+
     Returns:
         list: List of integer representations of the bytes.
     """
@@ -217,7 +217,7 @@ class NTRU(NumberTheoreticalAlg):
             Bytes: Encrypted ciphertext.
         """
         random_poly = random_poly or rand_poly(self.N, int(math.sqrt(self.q)))
-
+ 
         # Convert plaintext into polynomial
         pt_poly = P([int(bit) for bit in bin(int.from_bytes(plaintext, 'big'))[2:].zfill(len(plaintext) * 8)])
         rhm     = (random_poly * self.h_poly).trunc(self.q) + pt_poly
@@ -233,7 +233,7 @@ class NTRU(NumberTheoreticalAlg):
 
         Parameters:
             ciphertext (bytes): Ciphertext.
-        
+
         Returns:
             Bytes: Decrypted plaintext.
         """

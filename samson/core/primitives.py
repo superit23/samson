@@ -61,11 +61,11 @@ class EncryptionAlg(Primitive):
 @has_exploit(KeyPossession)
 class MAC(Primitive):
     PRIMITIVE_TYPE = PrimitiveType.MAC
-    KEY_SIZE       = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda cipher: cipher.KEY_SIZE)
+    KEY_SIZE       = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda mac: mac.cipher.KEY_SIZE)
     SYMMETRY_TYPE  = SymmetryType.SYMMETRIC
     INPUT_SIZE     = SizeSpec(size_type=SizeType.ARBITRARY)
-    BLOCK_SIZE     = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda cipher: cipher.BLOCK_SIZE)
-    OUTPUT_SIZE    = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda cipher: cipher.OUTPUT_SIZE)
+    BLOCK_SIZE     = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda mac: mac.cipher.BLOCK_SIZE)
+    OUTPUT_SIZE    = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda mac: mac.cipher.OUTPUT_SIZE)
 
     @abstractmethod
     def generate(self, *args, **kwargs):

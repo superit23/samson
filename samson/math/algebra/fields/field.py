@@ -1,4 +1,5 @@
 from samson.math.algebra.rings.ring import RingElement, Ring
+from samson.utilities.exceptions import CoercionException
 
 class Field(Ring):
     """
@@ -11,6 +12,24 @@ class Field(Ring):
 
     def is_field(self) -> bool:
         return True
+
+
+    def __call__(self, args, **kwargs) -> 'RingElement':
+        try:
+            return super().__call__(args, **kwargs)
+        except CoercionException as e:
+            try:
+                x = args
+                type_x = type(x)
+                if type_x.__name__ == 'Symbol':
+                    return self.function_field(x)
+            except:
+                raise e
+    
+
+    def function_field(self, symbol):
+        from samson.math.algebra.fields.function_field import FunctionField
+        return FunctionField(symbol, self)
 
 
 

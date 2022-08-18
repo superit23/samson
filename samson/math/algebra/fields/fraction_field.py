@@ -291,7 +291,7 @@ class FractionField(Field):
 
         Parameters:
             other (object): Object to coerce.
-        
+
         Returns:
             FractionFieldElement: Coerced element.
         """

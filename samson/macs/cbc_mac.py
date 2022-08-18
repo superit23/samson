@@ -34,7 +34,7 @@ class CBCMAC(MAC):
         Parameters:
             message (bytes): Message to generate a MAC for.
             pad      (bool): Whether or not to pad the message with PKCS7.
-        
+
         Returns:
             Bytes: The MAC.
         """

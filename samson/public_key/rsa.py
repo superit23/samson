@@ -408,10 +408,10 @@ class RSA(NumberTheoreticalAlg, EncodablePKI):
         # `pt` and `ct` must be in the same subgroup, so we'll just ensure they're
         # primitive roots
         constraints = [
+            is_greater,
             PrimeEngine.CONSTRAINTS.HAS_PRIMITIVE_ROOT(pt),
             PrimeEngine.CONSTRAINTS.HAS_PRIMITIVE_ROOT(ct),
-            has_res,
-            is_greater
+            has_res
         ]
 
         p_base = 3

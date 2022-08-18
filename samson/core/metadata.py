@@ -44,6 +44,7 @@ class SecurityProofType(Enum):
     SHORTEST_VECTOR       = 2
     INTEGER_FACTORIZATION = 3
     INFORMATION_THEORETIC = 4
+    CLAW_FINDING          = 5
 
 
 class UsageType(Enum):
@@ -214,7 +215,7 @@ class SizeSpec(object):
             if self.parent is None:
                 return ValueError
             
-            return self.selector(self.parent)
+            return int(self.selector(self.parent))
         else:
             raise NotImplementedError
 

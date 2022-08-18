@@ -307,8 +307,7 @@ class X509IntFlag(IntFlag):
 
     @classmethod
     def parse(cls, val_obj):
-        val = int(val_obj)
-        val = int(bin(val)[2:][::-1].zfill(cls.get_size())[::-1], 2)
+        val = int(val_obj.asBinary()[::-1].zfill(cls.get_size())[::-1], 2)
 
         val = cls(val)
         size = len(val_obj.asBinary())
@@ -813,7 +812,7 @@ class X509AuthorityKeyIdentifier(X509Extension):
 
         key_identifier = bytes(ext_val['keyIdentifier']) if ext_val['keyIdentifier'].isValue else None
         authority_cert_issuer = [GeneralName.parse_recursive(name) for name in ext_val['authorityCertIssuer']]
-        authority_cert_serial_number = ext_val['authorityCertSerialNumber'].asInteger() if ext_val['authorityCertSerialNumber'].isValue else None
+        authority_cert_serial_number = int(ext_val['authorityCertSerialNumber']) if ext_val['authorityCertSerialNumber'].isValue else None
 
         return X509AuthorityKeyIdentifier(key_identifier=key_identifier, authority_cert_issuer=authority_cert_issuer, authority_cert_serial_number=authority_cert_serial_number, critical=critical)
 

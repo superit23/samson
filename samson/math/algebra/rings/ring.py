@@ -452,6 +452,10 @@ class RingElement(BaseObject):
         raise NotInvertibleException(f'{self} is not invertible', parameters={'a': self})
 
 
+    def __neg__(self) -> 'RingElement':
+        return self.ring.coerce(-self.val)
+
+
     def __truediv__(self, other: 'RingElement') -> 'RingElement':
         if not other:
             raise ZeroDivisionError

@@ -163,7 +163,7 @@ class Bytes(bytearray):
         Parameters:
             amount (int): Amount to rotate by.
             bits   (int): Bitspace to rotate over.
-        
+
         Returns:
             Bytes: A new instance of Bytes with the transformation applied.
         """
@@ -182,7 +182,7 @@ class Bytes(bytearray):
         Parameters:
             amount (int): Amount to rotate by.
             bits   (int): Bitspace to rotate over.
-        
+
         Returns:
             Bytes: A new instance of Bytes with the transformation applied.
         """
@@ -201,7 +201,7 @@ class Bytes(bytearray):
         Parameters:
             size            (int): Size of the chunks.
             allow_partials (bool): Whether or not to allow the last chunk to be a partial.
-        
+
         Returns:
             list: List of Bytes.
         """
@@ -215,7 +215,7 @@ class Bytes(bytearray):
 
         Parameters:
             size (int): Length of the rows/chunks.
-        
+
         Returns:
             Bytes: Transposed bytes.
         """
@@ -229,7 +229,7 @@ class Bytes(bytearray):
 
         Parameters:
             size (int): Size of the resulting Bytes.
-        
+
         Returns:
             Bytes: Bytes padded with zeroes.
         """
@@ -243,7 +243,7 @@ class Bytes(bytearray):
         Parameters:
             congruence (int): What the size should be congruent to.
             pad_byte (bytes): Byte to pad with.
-        
+
         Returns:
             Bytes: Padded bytes.
         """
@@ -257,7 +257,7 @@ class Bytes(bytearray):
         Parameters:
             congruence (int): What the size should be congruent to.
             pad_byte (bytes): Byte to pad with.
-        
+
         Returns:
             Bytes: Padded bytes.
         """
@@ -271,7 +271,7 @@ class Bytes(bytearray):
         Parameters:
             size   (int): Size to be stretched to.
             offset (int): Offset to start from.
-        
+
         Returns:
             Bytes: Bytes stretched to `size`.
 
@@ -293,7 +293,7 @@ class Bytes(bytearray):
         
         Parameters:
             byteorder (str): Byteorder to switch to. If not specified, defaults to the opposite of `self`.
-        
+
         Returns:
             Bytes: Swapped order bytes.
         """
@@ -314,6 +314,18 @@ class Bytes(bytearray):
             parts.append(data)
             curr   = curr[length+length_size:]
 
+        return parts
+    
+
+    def multichunk(self, sizes: list) -> list:
+        curr  = self
+        parts = []
+
+        for size in sizes:
+            data = curr[:size]
+            parts.append(data)
+            curr = curr[size:]
+        
         return parts
 
 

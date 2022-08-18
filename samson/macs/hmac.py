@@ -1,6 +1,6 @@
 from samson.utilities.bytes import Bytes
 from samson.core.primitives import MAC, Primitive
-from samson.core.metadata import FrequencyType
+from samson.core.metadata import FrequencyType, SizeType, SizeSpec
 from samson.ace.decorators import register_primitive
 
 # https://en.wikipedia.org/wiki/HMAC
@@ -9,6 +9,10 @@ class HMAC(MAC):
     """
     Hash-based message authentication code using a generic interface to hash functions.
     """
+    
+    KEY_SIZE    = SizeSpec(size_type=SizeType.ARBITRARY)
+    BLOCK_SIZE  = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda mac: mac.hash_obj.BLOCK_SIZE)
+    OUTPUT_SIZE = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda mac: mac.hash_obj.OUTPUT_SIZE)
 
     USAGE_FREQUENCY = FrequencyType.PROLIFIC
 

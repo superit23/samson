@@ -48,7 +48,7 @@ class ECDHE(KeyExchangeAlg):
 
         Parameters:
             challenge (WeierstrassPoint): The other instance's challenge.
-        
+
         Returns:
             WeierstrassPoint: Shared key.
         """
@@ -61,7 +61,7 @@ class ECDHE(KeyExchangeAlg):
 
         Parameters:
             challenge (WeierstrassPoint): The other instance's challenge.
-        
+
         Returns:
             Bytes: Shared key.
         """

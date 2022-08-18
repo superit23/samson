@@ -1,3 +1,4 @@
+from samson.auxiliary.console_colors import AUTO_SHIM
 start_exec = """
 import logging
 logging.getLogger().setLevel(logging.WARNING)
@@ -14,7 +15,7 @@ z = Symbol('z')
 ZZ[x]
 
 logger = logging.getLogger("samson.repl")
-"""
+""" + AUTO_SHIM
 
 LOGO = """
                                                                 
@@ -41,7 +42,7 @@ def apply_logo_theme(colors):
     return logo
 
 
-def start_repl():
+def start_repl(additional_exec: list=None):
     """
     Executes the samson REPL.
     """
@@ -69,7 +70,7 @@ IPython {IPython.__version__}
     conf.InteractiveShellApp.exec_lines = [
         start_exec,
         f'print("""{banner}""")'
-    ]
+    ] + (additional_exec or [])
 
     conf.TerminalInteractiveShell.prompts_class = SamsonPrompt
 

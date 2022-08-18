@@ -24,6 +24,7 @@ class ConcatKDF(KDF):
     def __reprdir__(self):
         return ['hash_obj', 'desired_len']
 
+
     def derive(self, key: bytes, other_info: bytes=b'') -> Bytes:
         """
         Derives a key.
@@ -31,7 +32,7 @@ class ConcatKDF(KDF):
         Parameters:
             key        (bytes): Bytes-like object.
             other_info (bytes): Additional data to use as tweak.
-        
+
         Returns:
             Bytes: Derived key.
         """

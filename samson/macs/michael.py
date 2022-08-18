@@ -1,6 +1,6 @@
 from samson.utilities.bytes import Bytes
 from samson.core.primitives import MAC, Primitive
-from samson.core.metadata import FrequencyType, UsageType
+from samson.core.metadata import FrequencyType, UsageType, SizeSpec, SizeType
 from samson.ace.decorators import register_primitive
 
 
@@ -10,6 +10,9 @@ class Michael(MAC):
     References:
         "A Note on the Fragility of the 'Michael' Message Integrity Code"
     """
+
+    KEY_SIZE    = SizeSpec(size_type=SizeType.SINGLE, sizes=64)
+    OUTPUT_SIZE = SizeSpec(size_type=SizeType.SINGLE, sizes=64)
 
     USAGE_FREQUENCY = FrequencyType.UNUSUAL
     USAGE_TYPE      = UsageType.WIRELESS

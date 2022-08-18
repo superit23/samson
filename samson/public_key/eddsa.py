@@ -81,7 +81,7 @@ class EdDSA(DSA):
 
         Parameters:
             P (TwistedEdwardsPoint): Point to encode.
-        
+
         Returns:
             Bytes: `Bytes` encoding.
         """
@@ -96,7 +96,7 @@ class EdDSA(DSA):
 
         Parameters:
             in_bytes (Bytes): `TwistedEdwardsPoint` encoded as `Bytes`.
-        
+
         Returns:
             TwistedEdwardsPoint: Decoded point.
         """
@@ -124,7 +124,7 @@ class EdDSA(DSA):
         Parameters:
             message (bytes): Message to sign.
             k         (int): (Optional) Ephemeral key.
-        
+
         Returns:
             Bytes: Signature formatted as r + s.
         """
@@ -144,7 +144,7 @@ class EdDSA(DSA):
         Parameters:
             message (bytes): Message.
             sig     (bytes): Signature of `message`.
-        
+
         Returns:
             bool: Whether the signature is valid or not.
         """

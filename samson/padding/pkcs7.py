@@ -21,7 +21,7 @@ class PKCS7(BaseObject):
 
         Parameters:
             plaintext (bytes): Plaintext to pad.
-        
+
         Returns:
             Bytes: Padded plaintext.
         """
@@ -36,7 +36,7 @@ class PKCS7(BaseObject):
 
         Parameters:
             plaintext (bytes): Plaintext to unpad.
-        
+
         Returns:
             Bytes: Unpadded plaintext.
         """

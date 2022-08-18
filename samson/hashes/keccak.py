@@ -114,7 +114,7 @@ class Keccak(SpongeConstruction, Hash):
 
         Parameters:
             message (bytes): Message to be hashed.
-        
+
         Returns:
             Bytes: The hash digest.
         """

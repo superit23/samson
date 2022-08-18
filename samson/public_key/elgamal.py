@@ -40,7 +40,7 @@ class ElGamal(NumberTheoreticalAlg):
 
         Returns:
             (int, int): Formatted as (ephemeral key, ciphertext).
-        
+
         References:
             https://en.wikipedia.org/wiki/ElGamal_encryption
         """
@@ -58,7 +58,7 @@ class ElGamal(NumberTheoreticalAlg):
 
         Parameters:
             key_and_ciphertext ((int, int)): Ephemeral key and ciphertext.
-        
+
         Returns:
             Bytes: Plaintext.
         """

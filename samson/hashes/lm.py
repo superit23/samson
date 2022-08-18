@@ -38,7 +38,7 @@ class LM(BaseObject):
 
         Parameters:
             lm_hash (bytes): LM hash.
-        
+
         Returns:
             (bool, bool): Whether or not each half of the LM hash is null.
         """

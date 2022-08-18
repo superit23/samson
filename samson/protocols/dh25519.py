@@ -56,7 +56,7 @@ class DH25519(KeyExchangeAlg):
 
         Parameters:
             challenge (int): The other instance's challenge.
-        
+
         Returns:
             int: Shared key.
         """

@@ -61,7 +61,7 @@ class SocialistMillionare(BaseObject):
         Parameters:
             challenge ((int, int)): Challenge from peer.
             r                (int): Ephemeral random exponent.
-        
+
         Returns:
             (int, int): P and Q values to send to its peer.
         """
@@ -85,7 +85,7 @@ class SocialistMillionare(BaseObject):
 
         Parameters:
             challenge ((int, int)): P and Q values of peer's challenge.
-        
+
         Returns:
             int: The final challenge.
         """
@@ -103,7 +103,7 @@ class SocialistMillionare(BaseObject):
 
         Parameters:
             c_b (int): Peer's final challenge.
-        
+
         Returns:
             bool: Whether or not the challenge was correct.
         """

@@ -1,11 +1,15 @@
 from samson.utilities.bytes import Bytes
 from samson.core.primitives import MAC, Primitive
-from samson.core.metadata import FrequencyType
+from samson.core.metadata import FrequencyType, SizeSpec, SizeType
 from samson.ace.decorators import register_primitive
 from samson.hashes.sha3 import cSHAKE128, cSHAKE256
 
 class KMAC(MAC):
     USAGE_FREQUENCY = FrequencyType.UNUSUAL
+
+    KEY_SIZE    = SizeSpec(size_type=SizeType.ARBITRARY)
+    BLOCK_SIZE  = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda mac: mac.hash_obj.BLOCK_SIZE)
+    OUTPUT_SIZE = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda mac: mac.hash_obj.OUTPUT_SIZE)
 
     def __init__(self, key: bytes, cSHAKE: type, digest_bit_length: int, customization_str: bytes=b''):
         """

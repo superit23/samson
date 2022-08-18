@@ -21,7 +21,7 @@ class IncrementalPadding(BaseObject):
 
         Parameters:
             plaintext (bytes): Plaintext to pad.
-        
+
         Returns:
             Bytes: Padded plaintext.
         """
@@ -35,8 +35,8 @@ class IncrementalPadding(BaseObject):
         Unpads the plaintext.
 
         Parameters:
-            plaintext           (bytes): Plaintext to unpad.
-        
+            plaintext (bytes): Plaintext to unpad.
+
         Returns:
             Bytes: Unpadded plaintext.
         """

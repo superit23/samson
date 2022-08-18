@@ -27,7 +27,7 @@ class FeistelNetwork(BaseObject):
         Parameters:
             key       (bytes): Bytes-like object to key the cipher.
             plaintext (bytes): Bytes-like object to be encrypted.
-        
+
         Returns:
             generator: Resulting intermediate ciphertext.
         """
@@ -50,7 +50,7 @@ class FeistelNetwork(BaseObject):
         Parameters:
             key        (bytes): Bytes-like object to key the cipher.
             ciphertext (bytes): Bytes-like object to be decrypted.
-        
+
         Returns:
             generator: Resulting intermediate plaintext.
         """

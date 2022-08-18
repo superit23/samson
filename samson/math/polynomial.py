@@ -598,10 +598,10 @@ class Polynomial(RingElement):
 
         Parameters:
             k (int): Root to take.
-        
+
         Returns:
             Polynomial: `k`-th root.
-        
+
         Examples:
             >>> from samson.math.algebra.rings.integer_ring import ZZ
             >>> from samson.math.symbols import Symbol
@@ -619,10 +619,10 @@ class Polynomial(RingElement):
 
         Parameters:
             mod (RingElement): Modulus.
-        
+
         Returns:
             Polynomial: Polynomial with reduced coefficients.
-        
+
         Examples:
             >>> from samson.math.algebra.rings.integer_ring import ZZ
             >>> from samson.math.symbols import Symbol
@@ -1158,7 +1158,7 @@ class Polynomial(RingElement):
                                 flipped[flip] -= p
 
 
-                            while f != f.ring.one and not f % flipped:
+                            while f.ring.one not in (f, flipped) and not f % flipped:
                                 f //= flipped
                                 factors.append(flipped)
 
@@ -1370,7 +1370,7 @@ class Polynomial(RingElement):
         else:
             lc = p.LC()
             if lc != p.coeff_ring.one:
-                factors[lc] = 1
+                factors[p.ring(lc)] = 1
                 p = p.monic()
 
             # Cantor-Zassenhaus (SFF -> DDF -> EDF)
@@ -1543,7 +1543,7 @@ class Polynomial(RingElement):
         zero, one = self.coeff_ring.zero, self.coeff_ring.one
 
         if is_field:
-            o_lc_inv  = ~other.LC()
+            o_lc_inv = ~other.LC()
 
         while r and r.degree() >= n:
             r_start = r
@@ -1781,7 +1781,7 @@ class Polynomial(RingElement):
         # Euclidean division is only defined for polynomials over a field
         R = self.coeff_ring
         if R.is_field():
-            return super().gcd(other)
+            return super().gcd(other).monic()
 
         elif use_naive:
             # Assumes invertibility despite not being a field

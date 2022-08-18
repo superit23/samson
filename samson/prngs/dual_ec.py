@@ -45,7 +45,7 @@ class DualEC(BaseObject):
 
         Parameters:
             curve (WeierstrassCurve): Curve to use.
-        
+
         Returns:
             (WeierstrassPoint, WeierstrassPoint, int): Result formatted as (P, backdoored Q, backdoor d)
         """

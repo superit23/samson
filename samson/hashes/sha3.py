@@ -80,6 +80,9 @@ class cSHAKE(Keccak):
         https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-185.pdf
     """
 
+    OUTPUT_SIZE = SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda hash: hash.digest_size * 8)
+
+
     def __init__(self, r: int, c: int, digest_bit_length: int, w: int, function_name: bytes, customization_str: bytes):
         super().__init__(r=r, c=c, digest_bit_size=digest_bit_length, padding=0x1F)
         self.function_name = function_name

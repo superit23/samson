@@ -82,7 +82,7 @@ class DiffieHellman(KeyExchangeAlg, EncodablePKI):
 
         Parameters:
             challenge (int): The other instance's challenge.
-        
+
         Returns:
             int: Shared key.
         """
@@ -96,7 +96,7 @@ class DiffieHellman(KeyExchangeAlg, EncodablePKI):
 
         Parameters:
             challenge (int): The challenge observed.
-        
+
         Returns:
             int: The challenger's private key.
         """

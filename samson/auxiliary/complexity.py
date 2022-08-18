@@ -10,6 +10,10 @@ def get_math_gen():
 def get_factor_gen():
     return LazyLoader('_factor_gen', globals(), 'samson.math.factorization.general')
 
+@lru_cache()
+def get_real_gen():
+    return LazyLoader('_real_gen', globals(), 'samson.math.algebra.fields.real_field')
+
 
 class Complexity(object):
     def __init__(self, repr, estimator):
@@ -48,6 +52,13 @@ def _ph_estimator(g: 'RingElement', n: int=None, factors: dict=None):
     return total // 2
 
 
+def _nist_gnfs_estimator(L: int):
+    RR   = get_real_gen().RealField(100)
+    ln2  = RR(2).log()
+    Lln2 = RR(L).log(2)*ln2
+    return int(RR(2)**((1.923*(Lln2*RR(Lln2).log()**2)**(1/3) - 4.69)/ln2))
+
+
 class KnownComplexities(object):
     LOG    = Complexity(repr='O(log n)', estimator=lambda n: n.bit_length())
     LINEAR = Complexity(repr='O(n)', estimator=lambda n: n)
@@ -60,3 +71,4 @@ class KnownComplexities(object):
     LLL    = Complexity(repr='O(n^4 log B)', estimator=lambda rows, columns: rows**4 * columns.bit_length()) # https://arxiv.org/abs/1006.1661#:~:text=Its%20average%20complexity%20is%20shown,approximations%20of%20LLL%20are%20proposed.
     GRAM   = Complexity(repr='O(2nk^2)', estimator=lambda rows, columns: 2*rows*columns**2) # https://stackoverflow.com/questions/27986225/computational-complexity-of-gram-schmidt-orthogonalization-algorithm
     SIQS   = Complexity(repr='O(exp(sqrt(log n log log n)))', estimator=lambda n: round(math.e**(math.sqrt(math.log(n) * math.log(math.log(n)))))) # https://www.rieselprime.de/ziki/Self-initializing_quadratic_sieve#Complexity
+    NIST_GNFS = Complexity(repr='(1.923 * ∛[L*ln(2)*ln(L*ln(2))²] - 4.69) / ln(2)', estimator=_nist_gnfs_estimator) # https://crypto.stackexchange.com/questions/8687/security-strength-of-rsa-in-relation-with-the-modulus-size

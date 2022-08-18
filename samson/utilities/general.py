@@ -292,6 +292,9 @@ def add_or_increment(dictionary: dict, key: object, value: int=1):
     """
     if key in dictionary:
         dictionary[key] += value
+
+        if not dictionary[key]:
+            del dictionary[key]
     else:
         dictionary[key] = value
 

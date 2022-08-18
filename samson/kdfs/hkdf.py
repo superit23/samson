@@ -35,7 +35,7 @@ class HKDF(KDF):
             key  (bytes): Bytes-like object to key the internal HMAC.
             salt (bytes): Salt to tweak the output.
             info (bytes): Additional data to use as tweak.
-        
+
         Returns:
             Bytes: Derived key.
         """

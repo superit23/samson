@@ -1365,6 +1365,11 @@ def random_int(n: int) -> int:
 
     """
     n_bits = math.ceil(math.log2(n))
+
+    # This is required for very specific cases where the floating point precision causes a floor such that
+    # 2**n_bits < n, which causes an infinite loop
+    n_bits += 2**n_bits < n
+
     byte_length = math.ceil(n_bits / 8)
     max_bit = 2**n_bits
     q = max_bit // n

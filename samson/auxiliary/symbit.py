@@ -1,4 +1,3 @@
-from this import d
 from samson.core.base_object import BaseObject
 from samson.math.polynomial import Polynomial
 from samson.math.algebra.rings.integer_ring import ZZ
@@ -298,7 +297,7 @@ class SymFunc(SymBit):
 
 
     @staticmethod
-    def from_func(func, symbols):
+    def from_func(func):
         sig  = inspect.signature(func)
         symbols, zero, one  = build_symbols(sig.parameters) 
         symbolic = func(*symbols)
@@ -336,12 +335,29 @@ class SizableMeta(type):
         return Inst
 
 
+
+class SymbolSet(BaseObject):
+    def __init__(self, symbol_names, size) -> None:
+        self.vars = [[Symbol(f'{var}{i}') for i in range(size)] for var in symbol_names]
+        symbols   = tuple([item for b in self.vars for item in b])
+        self.R    = ZZ/ZZ(2)
+        self.P    = self.R[symbols]
+    
+
+    def __iter__(self):
+        return self.vars.__iter__()
+
+
+    def __getitem__(self, idx):
+        return self.vars[idx]
+
+
 class FixedBitVector(BaseObject):
     SIZE = None
 
-    def __init__(self, var_name: str) -> None:
-        self.var_name = var_name
-        self.vars = [Symbol(f'{var_name}{i}') for i in range(self.SIZE)]
+    def __init__(self, var, symbol_set) -> None:
+        self.var_name = var
+        self.vars = symbol_set
 
 
     def __getitem__(self, idx):
@@ -358,17 +374,51 @@ class FixedBitVector(BaseObject):
         return SymBit(self.symbols[0].value.coeff_ring.one)
 
 
-    def __call__(self, val: int):
-        val   %= 2**self.SIZE
-        args   = [int(b) for b in bin(val)[2:].zfill(self.SIZE)]
-        kwargs = {s.repr:v for s,v in zip(self.vars, args[::-1])}
-        binary = [a(**kwargs) for a in self.symbols]
-        return int(''.join(str(b) for b in binary), 2)
+    def __call__(self, *vals, **kwargs):
+        v_names  = set(v.repr for l in self.vars for v in l)
 
+        # TODO: This only works for BitVectors with one digit appended!
+        v_map    = {v.repr[:-1]:l for l in self.vars for v in l}
+        val_dict = {}
+
+        def val_to_dict(var, val):
+            val %= 2**self.SIZE
+            args = [int(b) for b in bin(val)[2:].zfill(self.SIZE)]
+            return {s.repr:v for s,v in zip(var, args[::-1])}
+
+
+        for var, val in zip(self.vars, vals):
+            val_dict.update(val_to_dict(var, val))
+
+        for var, val in kwargs.items():
+            if var in v_names:
+                val_dict[var] = val
+            else:
+                val_dict.update(val_to_dict(v_map[var], val))
+
+        binary = [a(**val_dict) for a in self.symbols]
+
+        bv = self._create_copy()
+        bv.symbols = binary
+        return bv
+    
+
+    def is_constant(self):
+        return all(s in ZZ for s in self.symbols)
+    
+
+    def int(self):
+        if self.is_constant():
+            return int(''.join(str(b) for b in self.symbols), 2)
+        else:
+            raise ValueError("BitVector is not constant")
+
+
+    def __int__(self):
+        return self.int()
 
     def _create_copy(self):
-        bv = self.__class__(self.var_name)
-        bv.vars = self.vars
+        bv = self.__class__(*self.var_name, self.vars)
         bv.symbols = self.symbols
         return bv
     
@@ -445,20 +495,89 @@ class FixedBitVector(BaseObject):
 
 
 
-
 class BitVector(BaseObject, metaclass=SizableMeta):
     SIZABLE_CLS = FixedBitVector
 
     @staticmethod
     def from_func(func):
         sig = inspect.signature(func)
-        b_vecs = [param.annotation(param.name) for param in sig.parameters.values()]
-        symbols = tuple([item for b in b_vecs for item in b.vars])
+        all_sym_names = [param.name for param in sig.parameters.values()]
+        sym_set = SymbolSet(all_sym_names, list(sig.parameters.values())[0].annotation.SIZE)
 
-        R = ZZ/ZZ(2)
-        P = R[symbols]
+        b_vecs = [param.annotation(param.name, sym_set) for param in sig.parameters.values()]
 
-        for b_vec in b_vecs:
-            b_vec.symbols = [SymBit(P(sym)) for sym in b_vec.vars][::-1]
+        for i, b_vec in enumerate(b_vecs):
+            b_vec.symbols = [SymBit(sym_set.P(sym)) for sym in b_vec.vars[i]][::-1]
 
-        return SymFunc(func=func, sig=sig, symbols=b_vecs, zero=SymBit(P.zero), one=SymBit(P.one), symbolic=func(*b_vecs))
+        return SymFunc(func=func, sig=sig, symbols=b_vecs, zero=SymBit(sym_set.P.zero), one=SymBit(sym_set.P.one), symbolic=func(*b_vecs))
+
+
+
+class Adder(BaseObject):
+    def __init__(self, num_bits: int) -> None:
+        self.n = num_bits
+
+        def half_adder(a, b):
+            return a ^ b, a & b
+
+
+        def full_adder(a, b, c):
+            s1, c1 = half_adder(a, b)
+            s2, c2 = half_adder(s1, c)
+            return s2, c2 | c1
+
+
+        def add(a: BitVector[num_bits], b: BitVector[num_bits]):
+            s, c = a & a.zero, a & a.zero
+            for i in range(a.SIZE):
+                a_bit = (a >> i) & 1
+                b_bit = (b >> i) & 1
+                s1, c = full_adder(a_bit, b_bit, c)
+                s ^= s1 << i
+
+            return s ^ (c << a.SIZE)
+
+
+        self.half_adder = half_adder
+        self.full_adder = full_adder
+        self.add_native = add
+        self.add = BitVector.from_func(add)
+
+
+    def __call__(self, *args, **kwds):
+        return self.add(*args, **kwds)
+
+
+class Subtractor(BaseObject):
+    def __call__(self, a, b):
+        m = 2**self.n-1
+        b = self.add(b ^ m, 1)
+
+        return self.add(a, b)
+
+
+class ADVOP:
+    def TWO_CMPT(a):
+        """Two's complement"""
+        m = 2**a.SIZE-1
+
+        # TODO: This doesn't work because we don't have addition
+        a = (a ^ m)+1
+        return a
+
+
+    def NZTRANS(a):
+        """Transforms non-zero bitvectors to ALL ones"""
+        for i in range(a.SIZE.bit_length()-1):
+            a |= a >> 2**i
+
+        for i in range(a.SIZE.bit_length()-1):
+            a |= a << 2**i
+
+        return a
+
+
+    def IFNZ(c, s1, s2):
+        """If `c` is non-zero, s1, else s2"""
+        c = ADVOP.NZTRANS(c)
+        return (c & s1) ^ (~c & s2)

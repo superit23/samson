@@ -15,7 +15,7 @@ def QUARTER_ROUND(a: int, b: int, c: int, d: int) -> (int, int, int, int):
         b (int): ChaCha state variable.
         c (int): ChaCha state variable.
         d (int): ChaCha state variable.
-    
+
     Returns:
         (int, int, int, int): New values for (a, b, c, d).
     """

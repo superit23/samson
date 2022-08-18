@@ -56,7 +56,7 @@ class Dragonfly(KeyExchangeAlg):
 
         Parameters:
             challenge (int, int): The other instance's challenge.
-        
+
         Returns:
             int: Shared key.
         """

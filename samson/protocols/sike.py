@@ -2,7 +2,7 @@ from samson.hashes.sha3 import SHAKE256
 from samson.utilities.bytes import Bytes
 from samson.ace.decorators import register_primitive
 from samson.core.primitives import KeyExchangeAlg, Primitive
-from samson.core.metadata import SizeType, SizeSpec, FrequencyType
+from samson.core.metadata import SecurityProofType, SizeType, SizeSpec, FrequencyType
 from samson.protocols.sidh import SIDH, extract_prime_powers
 from samson.math.algebra.curves.montgomery_curve import MontgomeryCurve
 
@@ -41,6 +41,7 @@ class SIKE(KeyExchangeAlg):
     """
     KEY_SIZE        = SizeSpec(size_type=SizeType.ARBITRARY, typical=[434, 503, 610, 751])
     USAGE_FREQUENCY = FrequencyType.UNUSUAL
+    SECURITY_PROOF  = SecurityProofType.CLAW_FINDING
 
     def __init__(self, curve: 'EllipticCurve', Pa: 'WeierstrassPoint', Qa: 'WeierstrassPoint', Ra: 'WeierstrassPoint', Pb: 'WeierstrassPoint', Qb: 'WeierstrassPoint', Rb: 'WeierstrassPoint', use_a: bool, n: int, m: int=None):
         """

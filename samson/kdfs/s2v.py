@@ -44,7 +44,7 @@ class S2V(KDF):
 
         Parameters:
             *strings  (*args, bytes): Variadic args of bytestrings.
-        
+
         Returns:
             Bytes: Derived key.
         """

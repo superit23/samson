@@ -31,7 +31,7 @@ class BcryptPBKDF(KDF):
             password (bytes): Password.
             salt     (bytes): Salt.
             key_len    (int): Length of key to generate.
-        
+
         Returns:
             Bytes: Derived key.
         """

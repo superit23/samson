@@ -81,7 +81,7 @@ class MT19937(BasePRNG):
 
     CRACKING_DIFFICULTY = CrackingDifficulty.TRIVIAL
     NATIVE_BITS         = 32
-    REQUIRED_SAMPLES    = SizeSpec(size_type=SizeType.SINGLE, sizes=628)
+    REQUIRED_SAMPLES    = SizeSpec(size_type=SizeType.SINGLE, sizes=624)
 
     def __init__(self, seed: int=0):
         """

@@ -104,7 +104,7 @@ class BLAKE2(Hash):
 
         Parameters:
             message (bytes): Message to be hashed.
-        
+
         Returns:
             Bytes: The hash digest.
         """

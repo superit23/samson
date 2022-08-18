@@ -1,5 +1,5 @@
 from samson.auxiliary.complexity import add_complexity, KnownComplexities
-from samson.utilities.exceptions import SearchspaceExhaustedException
+from samson.utilities.exceptions import SearchspaceExhaustedException, ProbabilisticFailureException
 from samson.math.general import is_prime, _integer_ring, _factor_gen, _mat, sieve_of_eratosthenes, kth_root, crt
 from samson.utilities.runtime import RUNTIME
 from typing import Tuple
@@ -438,7 +438,7 @@ def _cado_nfs_dlog(y: int, q: int, p: int) -> 'Factors':
         return int(std_out.strip())
 
 
-def cado_nfs_dlog(g: int, y: int, q: int, p: int) -> 'Factors':
+def cado_nfs_dlog(g: int, y: int, q: int, p: int) -> int:
     # https://stackoverflow.com/a/27661481
     ZZ = _integer_ring.ZZ
     g_log = _cado_nfs_dlog(g, q, p)

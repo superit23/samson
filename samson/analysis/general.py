@@ -1,4 +1,4 @@
-from math import sqrt, pi
+from math import sqrt, pi, log2, e
 from samson.math.general import random_int, lcm, ceil, log1p, log, _integer_ring
 from tqdm import tqdm
 import operator as _operator
@@ -375,6 +375,21 @@ def simulate_until_event(p: float, runs: int, visual: bool=False) -> float:
         total += curr
 
     return total / runs
+
+
+def approximate_n_bit_permutations(n: int) -> float:
+    """
+    Approximates the number of `n`-bit permutations.
+
+    Parameters:
+        x (int): Size of permutation in bits.
+
+    Returns:
+        float: Exponent of number of permutations with base 2.
+    """
+    a = log2(2*pi)
+    b = (2**n/e)
+    return a*n/2 + log2(b)*2**n
 
 
 def generate_rc4_bias_map(ciphertexts):

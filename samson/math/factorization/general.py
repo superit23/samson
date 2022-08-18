@@ -13,6 +13,9 @@ _poly         = LazyLoader('_poly', globals(), 'samson.math.polynomial')
 _samson_math  = LazyLoader('_samson_math', globals(), 'samson.math.general')
 _siqs         = LazyLoader('_siqs', globals(), 'samson.math.factorization.siqs')
 
+import logging
+log = logging.getLogger(__name__)
+
 
 def pollards_p_1(n: int, B1: int=None, max_bound: int=None, a: int=2, E: int=1, exclude_list: list=None, exp_func: FunctionType=lambda n, p: n.bit_length() // p.bit_length()) -> int:
     """
@@ -586,6 +589,7 @@ def is_composite_power(n: int, precision: float=0.6) -> (bool, int, int):
 
 
 _POLLARD_QUICK_ITERATIONS = 25
+_FACTOR_USER_CACHE = {}
 
 @RUNTIME.global_cache()
 def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rho_max_bits: int=90, use_msieve: bool=True, use_cado_nfs: bool=True, use_siqs: bool=True, use_smooth_p: bool=False, use_ecm: bool=False, ecm_attempts: int=100000, perfect_power_checks: bool=True, mersenne_check: bool=True, visual: bool=False, reraise_interrupt: bool=False, user_stop_func: FunctionType=None) -> Factors:
@@ -625,6 +629,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
     use_cado_nfs &= bool(RUNTIME.cado_nfs_loc)
 
     original = n
+
+    if original in _FACTOR_USER_CACHE:
+        return _FACTOR_USER_CACHE[original]
 
     if not user_stop_func:
         user_stop_func = lambda n, facs: False
@@ -712,6 +719,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
     # Actual factorization
     try:
         if mersenne_check and is_power_of_two(original+1):
+            if visual:
+                log.info("Power of two detected; using Mersenne factorization")
+
             k = int(math.log(original+1, 2))
             facs, _ = _mersenne_factor(factor(k), use_siqs=use_siqs, visual=visual, progress_update=progress_update)
             progress_finish()
@@ -732,11 +742,17 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
             # Pollard's rho
             # If `n` is too big, attempt to remove small factors
             if n_bits > rho_max_bits:
+                if visual:
+                    log.info("Starting Rho quick factor")
+
                 n, internal_reraise = quick_factor(lambda n: pollards_rho(n, _POLLARD_QUICK_ITERATIONS), n)
                 if internal_reraise:
                     raise KeyboardInterrupt
 
             else:
+                if visual:
+                    log.info("Factoring completely with Rho")
+
                 # Full factorization with 'pollards_rho'
                 while not is_factored(n):
                     n_fac = pollards_rho(n)
@@ -759,6 +775,8 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
             exp_func  = lambda n, p: (n.bit_length()-bit_mod) // p.bit_length() // 4
             max_bound = min(100000, _samson_math.kth_root(n, 4))
 
+            log.info("Attempting smooth p +/- 1")
+
             n, internal_reraise = quick_factor(lambda n: williams_pp1(n, max_bound=max_bound, exp_func=exp_func), n)
             if internal_reraise:
                 raise KeyboardInterrupt
@@ -769,6 +787,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
 
 
         if use_cado_nfs and (not use_msieve or n.bit_length() >= 256):
+            if visual:
+                log.info("Factoring with CADO-NFS")
+
             # Full factorization with 'cado-nfs'
             while not is_factored(n):
                 n_fac = cado_nfs_factor(n)
@@ -779,6 +800,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
 
 
         if use_msieve:
+            if visual:
+                log.info("Factoring with msieve")
+
             # Full factorization with 'msieve'
             while not is_factored(n):
                 n_fac = msieve(n)
@@ -790,6 +814,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
 
 
         if use_ecm:
+            if visual:
+                log.info("Attempting ECM")
+
             # Lenstra's ECM
             while not is_factored(n):
                 try:
@@ -804,6 +831,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
 
 
         if use_siqs:
+            if visual:
+                log.info("Factoring with SIQS")
+
             while not is_factored(n):
                 primes, composites = _siqs.siqs(n, visual=visual)
                 factors += primes
@@ -826,6 +856,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
         factors.add(n)
 
     return factors
+
+
+factor.user_cache = _FACTOR_USER_CACHE
 
 
 

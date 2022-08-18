@@ -29,7 +29,7 @@ class SIV(StreamingBlockCipherMode, AuthenticatedCipher):
         Parameters:
             plaintext      (bytes): Bytes-like object to be encrypted.
             additional_data (list): Additional data to be authenticated (e.g. headers).
-        
+
         Returns:
             Bytes: Resulting IV + ciphertext.
         """
@@ -47,7 +47,7 @@ class SIV(StreamingBlockCipherMode, AuthenticatedCipher):
             ciphertext     (bytes): Bytes-like object to be decrypted.
             additional_data (list): Additional data to be authenticated (e.g. headers).
             verify          (bool): Whether or not to verify the authentication tag.
-        
+
         Returns:
             Bytes: Resulting plaintext.
         """

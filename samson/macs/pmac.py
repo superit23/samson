@@ -44,7 +44,7 @@ class PMAC(MAC):
 
         Parameters:
             message (bytes): Message to generate a MAC for.
-        
+
         Returns:
             Bytes: The MAC.
         """

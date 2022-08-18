@@ -75,7 +75,7 @@ class SRPServer(object):
         Parameters:
             identity    (bytes): Username.
             client_hash (bytes): Client's hash challenge.
-        
+
         Returns:
             bool: Whether or not the challenge is correct.
         """

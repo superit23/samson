@@ -66,7 +66,7 @@ class MerkleDamgardConstruction(Hash):
 
         Parameters:
             message (bytes): Message to be padded.
-        
+
         Returns:
             Bytes: Padded message.
         """
@@ -79,7 +79,7 @@ class MerkleDamgardConstruction(Hash):
 
         Parameters:
             message (bytes): Message to be hashed.
-        
+
         Returns:
             Bytes: Intermediate, hashed states.
         """
@@ -97,7 +97,7 @@ class MerkleDamgardConstruction(Hash):
 
         Parameters:
             message (bytes): Message to be hashed.
-        
+
         Returns:
             Bytes: Fully-hashed state.
         """
@@ -119,7 +119,7 @@ class MerkleDamgardConstruction(Hash):
             message         (bytes): Message originally hashed.
             bytes_to_append (bytes): Bytes to append to the end.
             secret_len        (int): The length of the secret.
-        
+
         Returns:
             (Bytes, Bytes): Result formatted as (crafted input, forged hash).
         """

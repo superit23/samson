@@ -46,6 +46,7 @@ class OrderElement(RingElement):
         References:
             https://math.stackexchange.com/questions/1033901/prime-ideals-of-the-ring-of-integers-of-an-algebraic-number-field
             https://cstheory.stackexchange.com/questions/16214/complexity-of-factoring-in-number-fields
+            https://people.math.umass.edu/~weston/cn/notes.pdf
         """
         K = self.ring
 
@@ -84,7 +85,7 @@ class OrderElement(RingElement):
             if not n % K.discriminant():
                 facs = {K.symbol*1: K.degree()}
 
-                if n // K.discriminant() < 0:
+                if n // K.discriminant() < 0 and not negate:
                     facs[K(-1)] = 1
 
                 return Factors(facs)

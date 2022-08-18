@@ -2,7 +2,7 @@ from samson.math.algebra.curves.weierstrass_curve import EllipticCurve, Weierstr
 from samson.math.factorization.general import factor
 from samson.math.general import random_int_between, is_prime
 from samson.core.primitives import KeyExchangeAlg, Primitive
-from samson.core.metadata import SizeType, SizeSpec, FrequencyType
+from samson.core.metadata import SecurityProofType, SizeType, SizeSpec, FrequencyType
 from samson.ace.decorators import register_primitive
 import math
 
@@ -56,6 +56,7 @@ class SIDH(KeyExchangeAlg):
 
     KEY_SIZE        = SizeSpec(size_type=SizeType.ARBITRARY, typical=[434, 503, 610, 751])
     USAGE_FREQUENCY = FrequencyType.UNUSUAL
+    SECURITY_PROOF  = SecurityProofType.CLAW_FINDING
 
     def __init__(self, curve: EllipticCurve, Pa: WeierstrassPoint, Qa: WeierstrassPoint, Pb: WeierstrassPoint, Qb: WeierstrassPoint, use_a: bool, n: int=None, m: int=None):
         """

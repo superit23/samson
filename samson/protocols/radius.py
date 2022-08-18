@@ -23,7 +23,7 @@ class RADIUS(BaseObject):
         Parameters:
             authenticator (bytes): Client authenticator.
             password      (bytes): Password.
-        
+
         Returns:
             Bytes: RADIUS-encrypted password.
         """
@@ -48,7 +48,7 @@ class RADIUS(BaseObject):
         Parameters:
             authenticator      (bytes): Client authenticator.
             encrypted_password (bytes): RADIUS-encrypted password.
-        
+
         Returns:
             Bytes: Plaintext password.
         """
@@ -63,7 +63,7 @@ class RADIUS(BaseObject):
         Parameters:
             encrypted_password (bytes): Password encrypted by RADIUS authentication.
             password           (bytes): Plaintext password.
-        
+
         Returns:
             Bytes: RADIUS key hash as MD5(key + AUTHENTICATOR).
 

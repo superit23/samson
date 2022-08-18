@@ -85,7 +85,7 @@ class Scrypt(KDF):
         Parameters:
             password (bytes): Bytes-like object to key the internal state.
             salt     (bytes): Salt to tweak the output.
-        
+
         Returns:
             Bytes: Derived key.
         """

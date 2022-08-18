@@ -35,7 +35,7 @@ class PSS(BaseObject):
         Parameters:
             plaintext (bytes): Plaintext to sign.
             salt      (bytes): (Optional) Random salt.
-        
+
         Returns:
             Bytes: Probabilistic signature.
         """
@@ -74,7 +74,7 @@ class PSS(BaseObject):
         Parameters:
             plaintext (bytes): Plaintext to verify.
             signature (bytes): Signature to verify against plaintext.
-        
+
         Returns:
             bool: Whether or not the plaintext is verified.
         """
