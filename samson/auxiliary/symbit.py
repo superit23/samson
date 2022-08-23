@@ -417,9 +417,12 @@ class FixedBitVector(BaseObject):
     def __int__(self):
         return self.int()
 
+
+
     def _create_copy(self):
-        bv = self.__class__(*self.var_name, self.vars)
-        bv.symbols = self.symbols
+        from copy import deepcopy
+        bv = self.__class__(self.var_name, self.vars)
+        bv.symbols = [s for s in self.symbols]
         return bv
     
     
@@ -508,62 +511,51 @@ class BitVector(BaseObject, metaclass=SizableMeta):
 
         for i, b_vec in enumerate(b_vecs):
             b_vec.symbols = [SymBit(sym_set.P(sym)) for sym in b_vec.vars[i]][::-1]
+        
 
-        return SymFunc(func=func, sig=sig, symbols=b_vecs, zero=SymBit(sym_set.P.zero), one=SymBit(sym_set.P.one), symbolic=func(*b_vecs))
+        return func(*b_vecs)
 
 
 
-class Adder(BaseObject):
+class ALU(BaseObject):
     def __init__(self, num_bits: int) -> None:
         self.n = num_bits
 
-        def half_adder(a, b):
-            return a ^ b, a & b
+
+        OP_CODES = {
+            0: ADVOP.ADD,
+            1: ADVOP.SUB,
+            2: lambda a,b: a & b,
+            3: lambda a,b: a | b,
+            4: lambda a,b: a ^ b,
+            5: lambda a,b: ADVOP.TWO_CMPT(a),
+            6: lambda a,b: ADVOP.TWO_CMPT(b),
+            7: ADVOP.MUL
+        }
 
 
-        def full_adder(a, b, c):
-            s1, c1 = half_adder(a, b)
-            s2, c2 = half_adder(s1, c)
-            return s2, c2 | c1
+        def ALU(ctrl: BitVector[self.n], a: BitVector[self.n], b: BitVector[self.n]):
+            c = a ^ a
+            for op_code, func in OP_CODES.items():
+                c = ADVOP.IFNZ(ctrl ^ op_code, c, func(a, b))
+
+            return c
 
 
-        def add(a: BitVector[num_bits], b: BitVector[num_bits]):
-            s, c = a & a.zero, a & a.zero
-            for i in range(a.SIZE):
-                a_bit = (a >> i) & 1
-                b_bit = (b >> i) & 1
-                s1, c = full_adder(a_bit, b_bit, c)
-                s ^= s1 << i
-
-            return s ^ (c << a.SIZE)
-
-
-        self.half_adder = half_adder
-        self.full_adder = full_adder
-        self.add_native = add
-        self.add = BitVector.from_func(add)
+        self.alu = BitVector.from_func(ALU)
 
 
     def __call__(self, *args, **kwds):
-        return self.add(*args, **kwds)
+        return self.alu(*args, **kwds)
 
 
-class Subtractor(BaseObject):
-    def __call__(self, a, b):
-        m = 2**self.n-1
-        b = self.add(b ^ m, 1)
-
-        return self.add(a, b)
 
 
 class ADVOP:
     def TWO_CMPT(a):
         """Two's complement"""
         m = 2**a.SIZE-1
-
-        # TODO: This doesn't work because we don't have addition
-        a = (a ^ m)+1
-        return a
+        return ADVOP.ADD(a ^ m, 1)
 
 
     def NZTRANS(a):
@@ -581,3 +573,90 @@ class ADVOP:
         """If `c` is non-zero, s1, else s2"""
         c = ADVOP.NZTRANS(c)
         return (c & s1) ^ (~c & s2)
+
+
+    def HALF_ADDER(a, b):
+        return a ^ b, a & b
+
+
+    def FULL_ADDER(a, b, c):
+        s1, c1 = ADVOP.HALF_ADDER(a, b)
+        s2, c2 = ADVOP.HALF_ADDER(s1, c)
+        return s2, c2 | c1
+
+
+    def ADD(a, b, c=None):
+        s, c = a ^ a, a ^ a if c is None else c
+        for i in range(a.SIZE):
+            a_bit = (a >> i) & 1
+            b_bit = (b >> i) & 1
+            s1, c = ADVOP.FULL_ADDER(a_bit, b_bit, c)
+            s ^= s1 << i
+
+        return s ^ (c << a.SIZE)
+
+
+    def SUB(a, b):
+        return ADVOP.ADD(a, ADVOP.TWO_CMPT(b))
+
+
+    def MUL(a, b):
+        # Initialize Booth's algorithm
+        size  = a.SIZE
+        A_hi  = a
+        A_mid = a ^ a
+        A_low = a ^ a
+
+        S_hi  = ADVOP.TWO_CMPT(a)
+        S_mid = a ^ a
+        S_low = a ^ a
+
+        P_hi  = a ^ a
+        P_mid = b
+        P_low = a ^ a
+
+        def detect_overflow(a, b, c):
+            a3 = ADVOP.TESTBIT(a, size-1)
+            b3 = ADVOP.TESTBIT(b, size-1)
+            c3 = ADVOP.TESTBIT(c, size-1)
+            z  = a ^ a
+
+            return ADVOP.IFNZ(a3 | b3, ADVOP.IFNZ(c3, a3 & b3, z ^ 1), z)
+        
+
+        def ext_add(P_h, P_m, P_l, M_h, M_m, M_l):
+            l    = ADVOP.ADD(P_l, M_l)
+            l_of = detect_overflow(P_l, M_l, l)
+
+            m    = ADVOP.ADD(P_m, M_m, l_of)
+            m_of = detect_overflow(P_m, M_m, m)
+
+            return [ADVOP.ADD(P_h, M_h, m_of), m, l]
+
+
+        for _ in range(size):
+            b0 = ADVOP.TESTBIT(P_mid, 0)
+            b1 = ADVOP.TESTBIT(P_low, size-1)
+
+            PS = ext_add(P_hi, P_mid, P_low, S_hi, S_mid, S_low)
+            PA = ext_add(P_hi, P_mid, P_low, A_hi, A_mid, A_low)
+            P  = [P_hi, P_mid, P_low]
+
+            b01 = b0 ^ b1
+            P[0] = ADVOP.IFNZ(b01, ADVOP.IFNZ(b0, PS[0], PA[0]), P[0])
+            P[1] = ADVOP.IFNZ(b01, ADVOP.IFNZ(b0, PS[1], PA[1]), P[1])
+            P[2] = ADVOP.IFNZ(b01, ADVOP.IFNZ(b0, PS[2], PA[2]), P[2])
+
+            P_hi, P_mid, P_low = P
+            P_low  = (P_mid & 1) << (size-1)
+            P_mid  = (P_mid >> 1) ^ ((P_hi & 1) << (size-1))
+            P_hi >>= 1
+            
+
+        return P_mid
+
+    
+
+    def TESTBIT(a, i):
+        return (a >> i) & 1
+
