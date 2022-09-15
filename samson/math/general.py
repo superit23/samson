@@ -2818,7 +2818,7 @@ def prime_number_theorem(n: int, use_heuristic: bool=False) -> int:
 pnt = prime_number_theorem
 
 
-def approxmiate_nth_prime(n: int) -> int:
+def approximate_nth_prime(n: int) -> int:
     """
     Approximates the `n`-th prime using the prime number theorem.
 
@@ -2851,7 +2851,6 @@ def __base_math_func(name, *args):
     else:
         return getattr(y, name)(*args[1:])
     
-
 
 
 def log(y: 'RingElement', base: 'RingElement') -> int:
@@ -2951,10 +2950,8 @@ def cornacchias_algorithm(d: int, p: int, all_sols: bool=False, **root_kwargs) -
             bound = kth_root(p, 2)
             n     = p
 
-            while True:
+            while t >= bound:
                 n, t = t, n % t
-                if t < bound:
-                    break
 
             result = ZZ(p-t**2)/d
             if result in ZZ and result.is_square():
@@ -3249,3 +3246,69 @@ def fwht(vector: list):
         h *= 2
     
     return vec_copy
+
+
+
+def _fs_4k2(n):
+    assert n % 4 == 2
+    from samson.math.algebra.rings.order import QuadraticField
+    ZZ = _integer_ring.ZZ
+
+    k = kth_root(n // 2, 2)
+
+    while True:
+        a = random_int(k) | 1
+        b = random_int(k)
+
+        if b % 2:
+            b += 1
+        
+        p = n - a**2 - b**2
+
+        if is_prime(p):
+            break
+
+
+    R = ZZ/ZZ(p)
+    m = R(-1).sqrt()
+
+    ZZI = QuadraticField(-1)
+    x = ZZI(int(m) + ZZI.symbol)
+
+    if x.norm() != p:
+        for fac in x.factor():
+            if fac.norm() == p:
+                x = fac
+                break
+
+
+    c,d = int(x.val.val[0]), int(x.val.val[1])
+
+    assert a**2 + b**2 + c**2 + d**2 == n
+
+    return a,b,c,d
+
+
+def four_squares(n: int) -> Tuple[int, int, int, int]:
+    """
+    References:
+        https://mathoverflow.net/questions/259152/efficient-method-to-write-number-as-a-sum-of-four-squares#:~:text=Wikipedia%20states%20that%20there%20randomized%20polynomial-time%20algorithms%20for,in%20expected%20running%20time%20O%20%28log%202%20n%29.
+    """
+    if n % 4 == 2:
+        return _fs_4k2(n)
+
+    elif n % 2 == 1:
+        a,b,c,d = _fs_4k2(2*n)
+
+        # Ensure a,b and c,d have same signs
+        if a % 2 != b % 2:
+            if a % 2 != c % 2:
+                a, c = c, a
+            else:
+                a, d = d, a
+
+        return (a+b) // 2, (a-b) // 2, (c+d) // 2, (c-d) // 2
+
+    else:
+        res = four_squares(n // 4)
+        return [r*2 for r in res]

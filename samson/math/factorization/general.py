@@ -603,6 +603,7 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
         use_rho              (bool): Whether or not to use Pollard's rho factorization.
         rho_max_bits          (int): Threshold in which Pollard's rho is considered ineffective.
         use_msieve           (bool): Use msieve if available.
+        use_cado_nfs         (bool): Use Cado-NFS if available.
         use_siqs             (bool): Whether or not to use the Self-Initializing Quadratic Sieve.
         use_smooth_p         (bool): Whether or not to use smooth `p +- 1` factorization methods (i.e. Pollard's P-1, and William's P+1).
         use_ecm              (bool): Whether or not to use ECM factorization.

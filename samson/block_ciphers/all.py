@@ -1,3 +1,4 @@
+from .bear import BEAR
 from .blowfish import Blowfish
 from .camellia import Camellia
 from .des import DES
@@ -9,4 +10,4 @@ from .tdes import TDES
 from .twofish import Twofish
 
 
-__all__ = ["Blowfish", "Camellia", "DES", "KASUMI", "RC5", "Rijndael", "Serpent", "TDES", "Twofish"]
+__all__ = ["BEAR", "Blowfish", "Camellia", "DES", "KASUMI", "RC5", "Rijndael", "Serpent", "TDES", "Twofish"]

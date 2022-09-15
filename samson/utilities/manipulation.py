@@ -7,7 +7,7 @@ def xor_buffs(buf1: bytes, buf2: bytes) -> bytearray:
     Parameters:
         buf1 (bytes): First byte buffer.
         buf2 (bytes): Second byte buffer.
-    
+
     Returns:
         bytearray: Resulting bytes.
     """
@@ -25,10 +25,10 @@ def stretch_key(key: bytes, length: int, offset: int=0) -> bytes:
     Parameters:
         length (int): Size to be stretched to.
         offset (int): Offset to start from.
-    
+
     Returns:
         bytes: Bytes stretched to `size`.
-    
+
     Examples:
         >>> stretch_key(b'abc', 5)
         b'abcab'
@@ -50,7 +50,7 @@ def transpose(ciphertext: bytes, size: int) -> list:
 
     Parameters:
         size (int): Length of the rows/chunks.
-    
+
     Returns:
         list: Transposed bytes.
     """
@@ -65,7 +65,7 @@ def get_blocks(ciphertext: bytes, block_size: int=16, allow_partials: bool=False
     Parameters:
         size            (int): Size of the chunks.
         allow_partials (bool): Whether or not to allow the last chunk to be a partial.
-    
+
     Returns:
         list: List of bytes.
     """
@@ -89,7 +89,7 @@ def left_rotate(x: int, amount: int, bits: int=32) -> int:
         x      (int): Integer to rotate.
         amount (int): Amount to rotate by.
         bits   (int): Bitspace to rotate over.
-    
+
     Returns:
         int: Rotated integer.
     """
@@ -107,7 +107,7 @@ def right_rotate(x: int, amount: int, bits: int=32) -> int:
         x      (int): Integer to rotate.
         amount (int): Amount to rotate by.
         bits   (int): Bitspace to rotate over.
-    
+
     Returns:
         int: Rotated integer.
     """

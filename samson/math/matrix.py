@@ -1,7 +1,7 @@
 from samson.math.dense_vector import DenseVector
 from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.algebra.rings.integer_ring import ZZ
-from samson.math.general import gaussian_elimination, is_prime, lll, gram_schmidt, is_power_of_two
+from samson.math.general import gaussian_elimination, lll, gram_schmidt, is_power_of_two
 from samson.utilities.runtime import RUNTIME
 from shutil import get_terminal_size
 from types import FunctionType
@@ -603,7 +603,7 @@ class Matrix(RingElement):
             
             return N
 
-        elif n_facs.is_prime_power() and n21 % 4 == 1:
+        elif not n % 2 and n_facs.is_prime_power() and n21 % 4 == 1:
             return Matrix.conference(n21+1).conference_to_hadamard()
         
         else:

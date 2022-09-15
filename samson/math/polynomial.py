@@ -1717,7 +1717,10 @@ class Polynomial(RingElement):
 
     def __int__(self) -> int:
         from samson.math.general import poly_to_int
-        return poly_to_int(self)
+        if self.degree() == 0:
+            return int(self[0])
+        else:
+            return poly_to_int(self)
 
 
     def __eq__(self, other: 'Polynomial') -> bool:

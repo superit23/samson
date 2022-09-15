@@ -1,11 +1,13 @@
 from samson.math.algebra.rings.ring import Ring, RingElement
-from samson.math.algebra.rings.integer_ring import ZZ
-from samson.math.general import hilbert_class_polynomial, is_prime, product, cyclomotic_polynomial, cornacchias_algorithm
+from samson.math.algebra.rings.integer_ring import ZZ, _get_QQ
+from samson.math.general import hilbert_class_polynomial, is_prime, product, cyclomotic_polynomial, cornacchias_algorithm, xgcd
 from samson.math.symbols import Symbol, oo
 from samson.math.factorization.general import factor, Factors
 from samson.math.matrix import Matrix
-from samson.utilities.exceptions import NoSolutionException
+from samson.utilities.exceptions import NoSolutionException, NotInvertibleException
 
+
+QQ = _get_QQ()
 
 class OrderElement(RingElement):
     def __init__(self, val: RingElement, ring: Ring):
@@ -89,7 +91,7 @@ class OrderElement(RingElement):
                     facs[K(-1)] = 1
 
                 return Factors(facs)
-            
+
 
             q = K.defining_polynomial.change_ring(ZZ/ZZ(n))
 
@@ -140,7 +142,7 @@ class OrderElement(RingElement):
 
 
     def __iter__(self):
-        z = ZZ.zero
+        z = QQ.zero
         d = self.ring.degree()
         n = self.val.val.degree()+1
 
@@ -175,11 +177,11 @@ class OrderElement(RingElement):
 
 
     def norm(self) -> RingElement:
-        return self.matrix().det()
+        return ZZ(self.matrix().det())
 
 
     def trace(self) -> RingElement:
-        return self.matrix().trace()
+        return ZZ(self.matrix().trace())
     
 
     # def __elemfloordiv__(self, other: 'RingElement') -> 'RingElement':
@@ -215,7 +217,7 @@ class Order(Ring):
 
         self.defining_polynomial = defining_polynomial
         self.symbol          = defining_polynomial.symbol
-        self.internal_ring   = ZZ[self.symbol]/self.defining_polynomial
+        self.internal_ring   = QQ[self.symbol]/self.defining_polynomial
         self.symbol.top_ring = self
 
         self.one  = self.ELEMENT_TYPE(self.internal_ring.one, self)
@@ -323,19 +325,86 @@ class Order(Ring):
 class QuadraticFieldElement(OrderElement):
     def factor(self) -> Factors:
         """
+        Factors the element in the ring of integers.
+
         References:
             https://math.stackexchange.com/questions/1043480/how-to-factor-ideals-in-a-quadratic-number-field
+
+        Examples:
+            >>> from samson.math.algebra.rings.order import QuadraticField
+            >>> K = QuadraticField(-7)
+            >>> K(12).factor()
+            <Factors: {<QuadraticFieldElement: val=-3, ring=ZZ[√-1]>: 1, <QuadraticFieldElement: val=√-1 + 1, ring=ZZ[√-1]>: 4}>
+
+            >>> (K(3)*K(5)).factor()
+            <Factors: {<QuadraticFieldElement: val=3, ring=ZZ[√-7]>: 1, <QuadraticFieldElement: val=5, ring=ZZ[√-7]>: 1}>
+
+            >>> (K(3)*K(3)).factor()
+            <Factors: {<QuadraticFieldElement: val=3, ring=ZZ[√-7]>: 2}>
+
+            >>> c = (K(3)*K(3)*K(5)*K(2)*K(a+49)*K(2*a+991))
+            >>> c.factor().recombine() == c
+            True
+
+            >>> K = QuadraticField(-1)
+            >>> K(2).factor()
+            <Factors: {<QuadraticFieldElement: val=(-1)*√-1, ring=ZZ[√-1]>: 1, <QuadraticFieldElement: val=√-1 + 1, ring=ZZ[√-1]>: 2}>
+
+            >>> K = QuadraticField(-11)
+            >>> K(2).factor()
+            <Factors: {<QuadraticFieldElement: val=2, ring=ZZ[√-11]>: 1}>
+
+            >>> a = K.symbol
+            >>> d = K(a + 1)/2
+            >>> (K(3)*d).factor()
+            <Factors: {<QuadraticFieldElement: val=(-1/2)*√-11 + 1/2, ring=ZZ[√-11]>: 1, <QuadraticFieldElement: val=(1/2)*√-11 + 1/2, ring=ZZ[√-11]>: 2}>
+
         """
         p = self.val.val
         K = self.ring
 
-        facs = super().factor()
-        if facs is None and K.discriminant() % 4 == 1 and int(p[0]) == 2:
-            Q = K.fraction_field()
-            Q.simplify = False
-            return Factors({Q(((1 + K.symbol), 2)): 1, Q(((1 + -K.symbol), 2)): 1})
-        else:
-            return facs
+        facs = Factors()
+        curr = self
+
+        if not self.is_prime():
+            d = K.defining_polynomial[0]
+            a = K.symbol
+
+            for p, e in self.norm().factor().items():
+                # Handle primes with non-prime norms
+                Kp = K(p)
+                if not e % 2 and Kp.norm() == p**2 and Kp.is_prime():
+                    facs.add(Kp, e // 2)
+                    curr /= Kp**(e // 2)
+                    continue
+
+                # Attempt to find element from norm
+                for _ in range(e):
+                    try:
+                        x, y  = cornacchias_algorithm(d, int(p))
+                        fac   = K(x + a*y)
+                        curr /= fac
+                        facs.add(fac)
+
+                    except NoSolutionException:
+                        # Handle fractional prime case
+                        x = QQ(1)/2
+                        if K.discriminant() % 4 == 1 and x**2 + d*x**2 == p:
+                            fac  = K(x + a*x)
+                            conj = fac.conjugate()
+
+                            for c in (fac, conj):
+                                result = curr / c
+
+                                # If it's not in OK, denominator will be 4
+                                if result.val.val.content().denominator in (1, 2):
+                                    curr = result
+                                    facs.add(c)
+
+        if curr != self.ring.one:
+            facs.add(curr)
+
+        return facs
 
 
     def conjugate(self) -> 'OrderElement':
@@ -364,21 +433,35 @@ class QuadraticFieldElement(OrderElement):
         if self.is_rational():
             p = abs(int(self.val.val[0]))
             return is_prime(p) and f.change_ring(ZZ/ZZ(p)).is_irreducible()
-        else:
-            return super().is_prime()
 
 
-        # try:
-        #     cornacchias_algorithm(-d, 4*p)
-        #     return False
-        # except NoSolutionException:
-        #     pass
+        for p in self.norm().factor():
+            try:
+                cornacchias_algorithm(-d, int(4*p))
+                return False
+            except NoSolutionException:
+                pass
 
-        # try:
-        #     cornacchias_algorithm(-d, p)
-        #     return False
-        # except NoSolutionException:
-        #     return True
+            try:
+                cornacchias_algorithm(-d, int(p))
+                return False
+            except NoSolutionException:
+                pass
+
+        return True
+
+
+    def __invert__(self) -> 'RingElement':
+        a = self.val.val
+        n = self.ring.defining_polynomial
+
+        _, x, _ = xgcd(a, n)
+
+        if self.ring(a * x) != self.ring.one:
+            raise NotInvertibleException(f"{self} is not invertible", parameters={'a': a, 'x': x, 'n': n})
+
+        return self.ring(x)
+
 
 
 class QuadraticField(Order):
@@ -392,7 +475,7 @@ class QuadraticField(Order):
             symbol_name = f'√{D}'
 
         x = Symbol(symbol_name)
-        ZZ[x]
+        QQ[x]
 
         super().__init__(x**2 - D)
 

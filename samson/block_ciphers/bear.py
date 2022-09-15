@@ -16,12 +16,6 @@ class BEAR(BlockCipher):
     # BLOCK_SIZE = SizeSpec(size_type=SizeType.RANGE, sizes=[32, 64, 128])
 
     def __init__(self, key: bytes, hash_obj: MAC, stream_cipher: StreamCipher, key_schedule: FunctionType, block_size: int=128):
-        """
-        Parameters:
-            key      (bytes): Bytes-like object to key the cipher.
-            num_rounds (int): Number of rounds to perform.
-            block_size (int): The desired block size in bits.
-        """
         Primitive.__init__(self)
         self.key = key
         self.H   = hash_obj
@@ -30,13 +24,13 @@ class BEAR(BlockCipher):
         self.key_schedule = key_schedule
 
         self.K1, self.K2 = self.key_schedule(self.key)
-        self.k = int(self.H(b'\x00').OUTPUT_SIZE) 
+        self.k = len(self.H(b'\x00').generate(b'\x00')) 
     
 
 
     def encrypt(self, plaintext: bytes) -> bytes:
         Ls = self.k // 8
-        Rs = (self.block_size - self.k) // 8
+        Rs = max((self.block_size - self.k) // 8, 0)
 
         L, R = plaintext[:Ls], plaintext[Ls:]
         L ^= self.H(self.K1).generate(R)
@@ -49,7 +43,7 @@ class BEAR(BlockCipher):
 
     def decrypt(self, ciphertext: bytes) -> bytes:
         Ls = self.k // 8
-        Rs = (self.block_size - self.k) // 8
+        Rs = max((self.block_size - self.k) // 8, 0)
 
         L, R = ciphertext[:Ls], ciphertext[Ls:]
         L ^= self.H(self.K2).generate(R)

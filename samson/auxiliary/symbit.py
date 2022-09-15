@@ -404,12 +404,12 @@ class FixedBitVector(BaseObject):
     
 
     def is_constant(self):
-        return all(s in ZZ for s in self.symbols)
+        return all(s.value in ZZ for s in self.symbols)
     
 
     def int(self):
         if self.is_constant():
-            return int(''.join(str(b) for b in self.symbols), 2)
+            return int(''.join(str(int(b.value)) for b in self.symbols), 2)
         else:
             raise ValueError("BitVector is not constant")
 
@@ -530,7 +530,15 @@ class ALU(BaseObject):
             4: lambda a,b: a ^ b,
             5: lambda a,b: ADVOP.TWO_CMPT(a),
             6: lambda a,b: ADVOP.TWO_CMPT(b),
-            7: ADVOP.MUL
+            7: ADVOP.MUL,
+            8: ADVOP.DIV,
+            9: ADVOP.MIN,
+            10: ADVOP.MAX,
+            11: ADVOP.GT,
+            12: ADVOP.LT,
+            13: ADVOP.EQ,
+            14: lambda a,b: ADVOP.LROT(a, b.int()),
+            15: lambda a,b: ADVOP.RROT(a, b.int())
         }
 
 
@@ -585,7 +593,7 @@ class ADVOP:
         return s2, c2 | c1
 
 
-    def ADD(a, b, c=None):
+    def ADD_CARRY(a, b, c):
         s, c = a ^ a, a ^ a if c is None else c
         for i in range(a.SIZE):
             a_bit = (a >> i) & 1
@@ -593,6 +601,11 @@ class ADVOP:
             s1, c = ADVOP.FULL_ADDER(a_bit, b_bit, c)
             s ^= s1 << i
 
+        return s, c
+
+
+    def ADD(a, b, c=None):
+        s, c = ADVOP.ADD_CARRY(a, b, None)
         return s ^ (c << a.SIZE)
 
 
@@ -602,45 +615,27 @@ class ADVOP:
 
     def MUL(a, b):
         # Initialize Booth's algorithm
+        zero  = a._coerce(0)
         size  = a.SIZE
         A_hi  = a
-        A_mid = a ^ a
-        A_low = a ^ a
+        A_mid = zero
+        A_low = zero
 
         S_hi  = ADVOP.TWO_CMPT(a)
-        S_mid = a ^ a
-        S_low = a ^ a
+        S_mid = zero
+        S_low = zero
 
-        P_hi  = a ^ a
+        P_hi  = zero
         P_mid = b
-        P_low = a ^ a
-
-        def detect_overflow(a, b, c):
-            a3 = ADVOP.TESTBIT(a, size-1)
-            b3 = ADVOP.TESTBIT(b, size-1)
-            c3 = ADVOP.TESTBIT(c, size-1)
-            z  = a ^ a
-
-            return ADVOP.IFNZ(a3 | b3, ADVOP.IFNZ(c3, a3 & b3, z ^ 1), z)
-        
-
-        def ext_add(P_h, P_m, P_l, M_h, M_m, M_l):
-            l    = ADVOP.ADD(P_l, M_l)
-            l_of = detect_overflow(P_l, M_l, l)
-
-            m    = ADVOP.ADD(P_m, M_m, l_of)
-            m_of = detect_overflow(P_m, M_m, m)
-
-            return [ADVOP.ADD(P_h, M_h, m_of), m, l]
-
+        P_low = zero
 
         for _ in range(size):
             b0 = ADVOP.TESTBIT(P_mid, 0)
             b1 = ADVOP.TESTBIT(P_low, size-1)
 
-            PS = ext_add(P_hi, P_mid, P_low, S_hi, S_mid, S_low)
-            PA = ext_add(P_hi, P_mid, P_low, A_hi, A_mid, A_low)
             P  = [P_hi, P_mid, P_low]
+            PS = ADVOP.MP_ADD(P, (S_hi, S_mid, S_low))
+            PA = ADVOP.MP_ADD(P, (A_hi, A_mid, A_low))
 
             b01 = b0 ^ b1
             P[0] = ADVOP.IFNZ(b01, ADVOP.IFNZ(b0, PS[0], PA[0]), P[0])
@@ -660,3 +655,194 @@ class ADVOP:
     def TESTBIT(a, i):
         return (a >> i) & 1
 
+
+
+    def DIV(a, b):
+        """
+        https://iq.opengenus.org/bitwise-division/
+        """
+        # Align most significant ones
+        Q   = a._coerce(0)
+        one = a._coerce(1)
+
+
+        # We have to manage overflow!
+        # Ex: DIV(3, 2)
+        # 2 = 0010
+        # 2 << 3 = 0001 0000
+
+        # Since a's overflow will always be zero,
+        # if c overflows, it MUST be greater than a
+        for i in range(a.SIZE-1, -1, -1):
+            c = (b << i)
+            overflow = b >> (a.SIZE-i)
+
+            z = ADVOP.GT(c, a)
+            z = ADVOP.IFNZ(overflow, one, z)
+            a = ADVOP.IFNZ(z, a, ADVOP.SUB(a, c))
+            Q = ADVOP.IFNZ(z, Q, ADVOP.ADD(Q, a._coerce(2**i)))
+
+        return Q
+
+
+    def ABS(a):
+        """
+        https://stackoverflow.com/questions/12041632/how-to-compute-the-integer-absolute-value
+        """
+        mask = a >> (a.SIZE-1)
+        a    = a ^ mask
+        return ADVOP.SUB(a, mask)
+
+
+    def S_GT(a, b):
+        diff = a ^ b
+        for i in range(a.SIZE.bit_length()-1):
+            diff |= diff >> 2**i
+
+        m1 = 1 << (a.SIZE-1)
+        m2 = m1-1
+
+        diff &= ~(diff >> 1) | m1
+        diff &= (a ^ m1) & (b ^ m2)
+
+        return diff
+
+
+    def GT(a, b):
+        ltb = ~a & b
+        gtb = a & ~b
+
+        for i in range(a.SIZE.bit_length()-1):
+            ltb |= ltb >> 2**i
+        
+        return gtb & ~ltb
+
+
+    def LT(a, b):
+        return ~(a == b) & ~ADVOP.NZTRANS(ADVOP.GT(a, b))
+    
+
+    def EQ(a, b):
+        return ~ADVOP.NZTRANS(a ^ b)
+
+
+    def GE(a, b):
+        return ADVOP.GT(a, b) | ADVOP.EQ(a, b)
+
+
+    def LE(a, b):
+        return ADVOP.LT(a, b) | ADVOP.EQ(a, b)
+
+
+    def MAX(a, b):
+        return ADVOP.IFNZ(ADVOP.GT(a, b), a, b)
+
+
+    def MIN(a, b):
+        return ADVOP.IFNZ(ADVOP.GT(a, b), b, a)
+
+
+    def LROT(a, n):
+        mask = 2**n-1
+        return ((a<<n) | (a>>(a.SIZE-n))) & mask
+
+
+    def RROT(a, n):
+        mask = 2**n-1
+        return ((a>>n) | (a<<(a.SIZE-n))) & mask
+
+
+    def MP_ADD(A, B):
+        C = []
+        c = None
+
+        for a, b in zip(A, B):
+            l, c = ADVOP.ADD_CARRY(a, b, c)
+            C.append(l)
+        
+        return C
+
+
+
+class LUT(BaseObject):
+    def __init__(self, table=None) -> None:
+        self.table = table or []
+
+
+    def contains(self, k):
+        c = k ^ k
+        for key, _val in self.table:
+            c = ADVOP.IFNZ(key ^ k, c, c._coerce(1))
+        
+        return c
+
+
+    def __getitem__(self, k):
+        c = k ^ k
+        for key, val in self.table:
+            c = ADVOP.IFNZ(k ^ key, c, val)
+
+        return c
+
+
+    def __setitem__(self, k, v):
+        self.table.append((k, v))
+
+
+
+class SymList(BaseObject):
+    def __init__(self, val=None) -> None:
+        self.val = val or []
+    
+
+    def contains(self, other):
+        c = other ^ other
+        for v in self.val:
+            c = ADVOP.IFNZ(v ^ other, c, c._coerce(1))
+        
+        return c
+
+
+    def __getitem__(self, other):
+        c = other ^ other
+        for idx, v in enumerate(self.val):
+            c = ADVOP.IFNZ(other ^ idx, c, v)
+
+        return c
+
+
+    def index(self, other):
+        c = other ^ other
+        for idx, v in enumerate(self.val):
+            c = ADVOP.IFNZ(v ^ other, c, c._coerce(idx))
+
+        return c
+    
+
+    def append(self, other):
+        self.val.append(other)
+
+
+
+class UInt(BaseObject):
+    pass
+
+
+class MPUInt(BaseObject):
+    def __init__(self, values) -> None:
+        self.values = values
+    
+
+    def _coerce(self, other):
+        if type(other) is type(self):
+            return other
+        
+
+        values = []
+        a = self.values[0]
+
+        for i in range(32 // a.SIZE):
+            d = (other >> (i*a.SIZE)) & ((1 << a.SIZE)-1)
+            values.append(a._coerce(d))
+        
+        return MPUInt(values)

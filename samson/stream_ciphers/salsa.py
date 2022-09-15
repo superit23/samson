@@ -16,7 +16,7 @@ def QUARTER_ROUND(a: int, b: int, c: int, d: int) -> (int, int, int, int):
         b (int): Salsa state variable.
         c (int): Salsa state variable.
         d (int): Salsa state variable.
-    
+
     Returns:
         (int, int, int, int): New values for (a, b, c, d).
     """
@@ -74,7 +74,7 @@ class Salsa(StreamCipher):
 
         Parameters:
             block_num (int): Current block number.
-        
+
         Returns:
             Bytes: Keystream block.
         """
@@ -124,7 +124,7 @@ class Salsa(StreamCipher):
             num_chunks  (int): Desired number of 64-byte keystream chunks.
             start_chunk (int): Chunk number to start at.
             state      (list): Custom state to be directly injected.
-        
+
         Returns:
             generator: Keystream chunks.
         """
@@ -139,10 +139,13 @@ class Salsa(StreamCipher):
 
         Parameters:
             length (int): Desired length of keystream in bytes.
-        
+
         Returns:
             Bytes: Keystream.
         """
+        if not length:
+            return Bytes()
+
         num_chunks  = math.ceil(length / 64)
         start_chunk = self.counter // 64
 
