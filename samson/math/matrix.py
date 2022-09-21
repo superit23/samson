@@ -1,6 +1,7 @@
 from samson.math.dense_vector import DenseVector
 from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.algebra.rings.integer_ring import ZZ
+from samson.math.factorization.general import is_perfect_power
 from samson.math.general import gaussian_elimination, lll, gram_schmidt, is_power_of_two
 from samson.utilities.runtime import RUNTIME
 from shutil import get_terminal_size
@@ -589,8 +590,9 @@ class Matrix(RingElement):
     @staticmethod
     def hadamard(n: int) -> 'Matrix':
         from samson.math.factorization.general import factor
-        n21 = n // 2 - 1
-        n_facs = factor(n21)
+        n21     = n // 2 - 1
+        n_facs  = factor(n21)
+        n1_facs = factor(n-1)
 
         if n == 1:
             return Matrix([[1]], coeff_ring=ZZ)
@@ -606,6 +608,9 @@ class Matrix(RingElement):
         elif not n % 2 and n_facs.is_prime_power() and n21 % 4 == 1:
             return Matrix.conference(n21+1).conference_to_hadamard()
         
+        elif n1_facs.is_prime_power() and not n % 4:
+            return Matrix.hadamard_paleyI(n)
+
         else:
             raise NotImplementedError(f"Hadamard matrices of order {n} not implemented")
 
@@ -629,6 +634,32 @@ class Matrix(RingElement):
         for i in range(q):
             for j in range(q):
                 M[i+1, j+1] = (F.element_at(i) - F.element_at(j)).quadratic_character()
+        
+        return M
+    
+
+    @staticmethod
+    def hadamard_paleyI(n: int) -> 'Matrix':
+        from samson.math.factorization.general import factor
+        from samson.math.algebra.fields.finite_field import FiniteField as FF
+
+        assert factor(n-1).is_prime_power() and not n % 4
+
+        q = n-1
+        F = FF(*list(factor(q).items())[0])
+
+        M = Matrix.fill(ZZ.zero, q+1, q+1)
+        for i in range(1, q+1):
+            M[0,i] = 1
+            M[i,0] = -1
+
+        for i in range(q):
+            for j in range(q):
+                M[i+1, j+1] = (F.element_at(i) - F.element_at(j)).quadratic_character()
+        
+
+        for i in range(n):
+            M[i,i] = -1
         
         return M
 

@@ -1938,6 +1938,7 @@ class ProofMethod(Enum):
     LUCAS_LEHMER   = 2
     MILLER_RABIN   = 3
     LUCAS_SEQUENCE = 4
+    PRATT          = 5
 
 
 class PrimalityCertficate(BaseObject):
@@ -2297,11 +2298,11 @@ def ecpp(N: int, recursive: bool=True) -> bool:
                     Eo = E.cardinality(EllipticCurveCardAlg.BRUTE_FORCE)
 
                 # Find a divisor above the bound
-                m_facs   = factor(Eo)
+                bound    = (kth_root(N, 4)+1)**2
+                m_facs   = factor(Eo)#, user_stop_func=lambda n, facs: facs.recombine() > bound)
                 divisors = list(m_facs.divisors())
                 divisors.sort()
 
-                bound = (kth_root(N, 4)+1)**2
                 for d in divisors[1:]:
                     if d > bound:
                         break
@@ -2394,10 +2395,32 @@ def __find_small_divisor(n: int) -> int:
             return certificate
 
 
+def pratt(n: int) -> PrimalityCertficate:
+    """
+    Proves whether or not `n` is prime. Note, this is quite slow for composites.
+
+    Parameters:
+        n (int): Number to test.
+
+    Returns:
+        PrimalityCertficate: Proof of whether or not `n` is prime.
+    """
+    ZZ = _integer_ring.ZZ
+    n1_facs = _factor_gen.factor(n-1)
+    R  = ZZ/ZZ(n)
+    Rm = R.mul_group()
+    g  = Rm.find_gen()
+
+    certificate = PrimalityCertficate(n=n, is_prime=g.order() == n-1, method=ProofMethod.PRATT, proof={'g': g, 'factors': {p:is_prime(p, True) for p in n1_facs}})
+
+    return certificate
+
+
+
 def is_prime(n: int, prove: bool=False) -> bool:
     """
     Determines if `n` is probably prime using the Baillie-PSW primality test if `prove` is False.
-    Otherwise, a combination of ECPP, Lucas-Lehmer, and exhaustive testing is used.
+    Otherwise, a combination of ECPP, Lucas-Lehmer, Pratt, and exhaustive testing is used.
 
     Parameters:
         n      (int): Positive integer.
@@ -2436,7 +2459,15 @@ def is_prime(n: int, prove: bool=False) -> bool:
             if not proof:
                 return proof
 
-            return ecpp(n)
+
+            # Speed found in testing. Pratt may be even faster with msieve installed
+            if n.bit_length() < 111:
+                return pratt(n)
+            else:
+                try:
+                    return ecpp(n)
+                except RuntimeError:
+                    return pratt(n)
 
     else:
         proof = __find_small_divisor(n)
@@ -3289,26 +3320,74 @@ def _fs_4k2(n):
     return a,b,c,d
 
 
+
+def sum_of_k_squares(n: int, k: int, max_attempts: int=10000) -> List[int]:
+    """
+    Probablistic algorithm that finds `n` as a sum of `k` squares.
+
+    Parameters:
+        n            (int): Number to find.
+        k            (int): Number of squares.
+        max_attempts (int): Maximum number of attempts before throwing.
+
+    Returns:
+        List[int]: `n` decomposed to `k` squares.
+    """
+    s = [max(kth_root(n // 4, 2), 1)]*k
+
+    assert n > -1
+
+    for _ in range(max_attempts):
+        result = sum([e**2 for e in s])
+        i      = random_int(k)
+        diff   = kth_root(abs(result-n), 2)
+
+        if result == n:
+            return s
+        elif result > n:
+            while not s[i]:
+                i = random_int(k)
+            
+            s[i] -= min(diff, s[i])
+        else:
+            s[i] += diff
+
+
+    raise ProbabilisticFailureException
+
+
 def four_squares(n: int) -> Tuple[int, int, int, int]:
     """
+    Probablistic algorithm that finds `n` as a sum of four squares.
+
+    Parameters:
+        n (int): Number to find.
+
+    Returns:
+        List[int]: `n` decomposed to four squares.
+
     References:
         https://mathoverflow.net/questions/259152/efficient-method-to-write-number-as-a-sum-of-four-squares#:~:text=Wikipedia%20states%20that%20there%20randomized%20polynomial-time%20algorithms%20for,in%20expected%20running%20time%20O%20%28log%202%20n%29.
     """
-    if n % 4 == 2:
-        return _fs_4k2(n)
+    try:
+        return tuple(sum_of_k_squares(n, 4))
 
-    elif n % 2 == 1:
-        a,b,c,d = _fs_4k2(2*n)
+    except ProbabilisticFailureException:
+        if n % 4 == 2:
+            return _fs_4k2(n)
 
-        # Ensure a,b and c,d have same signs
-        if a % 2 != b % 2:
-            if a % 2 != c % 2:
-                a, c = c, a
-            else:
-                a, d = d, a
+        elif n % 2 == 1:
+            a,b,c,d = _fs_4k2(2*n)
 
-        return (a+b) // 2, (a-b) // 2, (c+d) // 2, (c-d) // 2
+            # Ensure a,b and c,d have same signs
+            if a % 2 != b % 2:
+                if a % 2 != c % 2:
+                    a, c = c, a
+                else:
+                    a, d = d, a
 
-    else:
-        res = four_squares(n // 4)
-        return [r*2 for r in res]
+            return (a+b) // 2, (a-b) // 2, (c+d) // 2, (c-d) // 2
+
+        else:
+            res = four_squares(n // 4)
+            return [r*2 for r in res]

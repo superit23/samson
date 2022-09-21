@@ -375,10 +375,9 @@ class FixedBitVector(BaseObject):
 
 
     def __call__(self, *vals, **kwargs):
+        size_len = len(str(self.SIZE))
         v_names  = set(v.repr for l in self.vars for v in l)
-
-        # TODO: This only works for BitVectors with one digit appended!
-        v_map    = {v.repr[:-1]:l for l in self.vars for v in l}
+        v_map    = {v.repr[:-size_len]:l for l in self.vars for v in l}
         val_dict = {}
 
         def val_to_dict(var, val):
@@ -404,12 +403,12 @@ class FixedBitVector(BaseObject):
     
 
     def is_constant(self):
-        return all(s.value in ZZ for s in self.symbols)
+        return all(s.value if hasattr(s, 'value') else s.val in ZZ for s in self.symbols)
     
 
     def int(self):
         if self.is_constant():
-            return int(''.join(str(int(b.value)) for b in self.symbols), 2)
+            return int(''.join(str(int(b.value if hasattr(b, 'value') else b.val)) for b in self.symbols), 2)
         else:
             raise ValueError("BitVector is not constant")
 
@@ -420,7 +419,6 @@ class FixedBitVector(BaseObject):
 
 
     def _create_copy(self):
-        from copy import deepcopy
         bv = self.__class__(self.var_name, self.vars)
         bv.symbols = [s for s in self.symbols]
         return bv
@@ -537,8 +535,8 @@ class ALU(BaseObject):
             11: ADVOP.GT,
             12: ADVOP.LT,
             13: ADVOP.EQ,
-            14: lambda a,b: ADVOP.LROT(a, b.int()),
-            15: lambda a,b: ADVOP.RROT(a, b.int())
+            # 14: lambda a,b: ADVOP.LROT(a, b.int()),
+            # 15: lambda a,b: ADVOP.RROT(a, b.int())
         }
 
 
