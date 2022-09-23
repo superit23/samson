@@ -94,6 +94,9 @@ def parse_poly(poly, OP_MAP):
 
 
 def collapse_poly(poly):
+    if type(poly) is not Polynomial:
+        return poly
+
     if type(poly[0]) is Polynomial:
         poly = poly.map_coeffs(lambda i,c: (i, collapse_poly(c)))
 
@@ -110,7 +113,7 @@ class SymBit(BaseObject):
 
 
     def __call__(self, *args, **kwargs):
-        return self.value(*args, **kwargs)
+        return SymBit(self.value(*args, **kwargs))
 
 
     def __and__(self, other):
@@ -514,6 +517,22 @@ class BitVector(BaseObject, metaclass=SizableMeta):
         return func(*b_vecs)
 
 
+class ALUOP(Enum):
+    ADD = 0
+    SUB = 1
+    AND = 2
+    OR  = 3
+    XOR = 4
+    TWO_CMPT_A = 5
+    TWO_CMPT_B = 6
+    MUL = 7
+    DIV = 8
+    MIN = 9
+    MAX = 10
+    GT = 11
+    LT = 12
+    EQ = 13
+
 
 class ALU(BaseObject):
     def __init__(self, num_bits: int) -> None:
@@ -521,38 +540,53 @@ class ALU(BaseObject):
 
 
         OP_CODES = {
-            0: ADVOP.ADD,
-            1: ADVOP.SUB,
-            2: lambda a,b: a & b,
-            3: lambda a,b: a | b,
-            4: lambda a,b: a ^ b,
-            5: lambda a,b: ADVOP.TWO_CMPT(a),
-            6: lambda a,b: ADVOP.TWO_CMPT(b),
-            7: ADVOP.MUL,
-            8: ADVOP.DIV,
-            9: ADVOP.MIN,
-            10: ADVOP.MAX,
-            11: ADVOP.GT,
-            12: ADVOP.LT,
-            13: ADVOP.EQ,
+            ALUOP.ADD: ADVOP.ADD,
+            ALUOP.SUB: ADVOP.SUB,
+            ALUOP.AND: lambda a,b: a & b,
+            ALUOP.OR: lambda a,b: a | b,
+            ALUOP.XOR: lambda a,b: a ^ b,
+            ALUOP.TWO_CMPT_A: lambda a,b: ADVOP.TWO_CMPT(a),
+            ALUOP.TWO_CMPT_B: lambda a,b: ADVOP.TWO_CMPT(b),
+            ALUOP.MUL: ADVOP.MUL,
+            ALUOP.DIV: ADVOP.DIV,
+            ALUOP.MIN: ADVOP.MIN,
+            ALUOP.MAX: ADVOP.MAX,
+            ALUOP.GT: ADVOP.GT,
+            ALUOP.LT: ADVOP.LT,
+            ALUOP.EQ: ADVOP.EQ,
             # 14: lambda a,b: ADVOP.LROT(a, b.int()),
             # 15: lambda a,b: ADVOP.RROT(a, b.int())
         }
 
 
-        def ALU(ctrl: BitVector[self.n], a: BitVector[self.n], b: BitVector[self.n]):
+        def ALU(ctrl: BitVector[self.n]=None, a: BitVector[self.n]=None, b: BitVector[self.n]=None):
             c = a ^ a
             for op_code, func in OP_CODES.items():
-                c = ADVOP.IFNZ(ctrl ^ op_code, c, func(a, b))
+                c = ADVOP.IFNZ(ctrl ^ op_code.value, c, func(a, b))
 
             return c
 
 
-        self.alu = BitVector.from_func(ALU)
+        self.alu  = BitVector.from_func(ALU)
+        self.func = ALU
 
 
     def __call__(self, *args, **kwds):
-        return self.alu(*args, **kwds)
+        proc_args = []
+        for a in args:
+            if type(a) is ALUOP:
+                a = a.value
+            
+            proc_args.append(a)
+
+        proc_kwds = {}
+        for k,v in kwds.items():
+            if type(v) is ALUOP:
+                v = v.value
+            
+            proc_kwds[k] = v
+
+        return self.alu(*proc_args, **proc_kwds)
 
 
 

@@ -32,6 +32,37 @@ from typing import List
 # ]
 
 
+class AnyConstraint(BaseObject):
+    def __init__(self, sym: str) -> None:
+        self.sym = sym
+
+
+    def __hash__(self):
+        return hash((self.__class__, self.sym))
+
+    def __eq__(self, other) -> bool:
+        return type(self) == type(other) and self.sym == other.sym
+
+
+    def generate(self):
+        return [{self.sym: 0}, {self.sym: 1}]
+
+
+    def constrains(self, sym):
+        return sym == self.sym
+
+
+    def __add__(self, other):
+        if type(self) == type(other):
+            if self.sym == other.sym:
+                return ConstraintSystem([self])
+            else:
+                return ConstraintSystem([self, other])
+
+        else:
+            return other + self
+
+
 
 class EqualsConstraint(BaseObject):
     def __init__(self, sym: str, val: int) -> None:
@@ -40,7 +71,7 @@ class EqualsConstraint(BaseObject):
     
 
     def __hash__(self):
-        return hash((self.__class__, tuple(self.sym), self.val))
+        return hash((self.__class__, self.sym, self.val))
 
 
     def __eq__(self, other) -> bool:
@@ -81,25 +112,79 @@ class EqualsConstraint(BaseObject):
             if self.sym in other.syms:
                 new_one_of = []
 
-                # Delete any subcons that don't satisfy the equals
+               # Delete any subcons that don't satisfy the equals
                 for sub_con_system in other.con_sys:
+                    satisfied = True
+                    good_constraints = set()
+
                     for sub_con in sub_con_system.constraints:
+                        print()
+                        print("Testing sub_con", self, sub_con, sub_con.constrains(self.sym))
 
-                        # If we're in it, remove us from it and add the others
-                        if self == sub_con:
-                            con_sys = ConstraintSystem([con for con in sub_con_system.constraints if con.sym != self.sym])
-                            new_one_of.append(con_sys)
+                        try:
+                            mod_constraint = (self + sub_con).constraints
+                            print(mod_constraint)
+                            mod_constraint.remove(self)
+                            print("Adding good constraint", mod_constraint)
+                            for con in mod_constraint:
+                                good_constraints.add(con)
+                        except NoSolutionException:
+                            satisfied = False
+                            break
 
+                    if satisfied:
+                        con_sys = ConstraintSystem(good_constraints)
+                        #con_sys = ConstraintSystem([con for con in sub_con_system.constraints if hasattr(con, 'syms') or not con.constrains(self.sym)])
+                        new_one_of.append(con_sys)
+                        print("self", self)
+                        print("Appending con_sys", con_sys)
+                        print("sub_con_system", sub_con_system)
+
+
+                # # Delete any subcons that don't satisfy the equals
+                # for sub_con_system in other.con_sys:
+                #     for sub_con in sub_con_system.constraints:
+                #         print()
+                #         print("Testing sub_con", self, sub_con, sub_con.constrains(self.sym))
+
+                #         # If we're in it, remove us from it and add the others
+                #         if sub_con.constrains(self.sym):
+                #             try:
+                #                 print("Testing for contradiction...")
+                #                 self + sub_con
+                #                 con_sys = ConstraintSystem([con for con in sub_con_system.constraints if not con.constrains(self.sym)])
+                #                 new_one_of.append(con_sys)
+                #                 print("self", self)
+                #                 print("Appending con_sys", con_sys)
+                #                 print("sub_con_system", sub_con_system)
+                #             except NoSolutionException:
+                #                 pass
+
+                print()
+                print("Out of loop, building system")
                 if new_one_of:
                     if len(new_one_of) == 1:
                         constraints = list(new_one_of[0].constraints)
                     else:
-                        constraints = [OneOfConstraint([s for s in other.syms if s != self.sym], new_one_of)]
+                        oneof = OneOfConstraint([s for s in other.syms if s != self.sym], new_one_of)
+                        simp  = oneof.simplify()
+
+                        if simp:
+                            return simp
+    
+                        constraints = [oneof]
 
                     return ConstraintSystem([self] + constraints)
                 else:
                     raise NoSolutionException
 
+            else:
+                return ConstraintSystem([self, other])
+        
+
+        elif type(other) is AnyConstraint:
+            if self.sym == other.sym:
+                return ConstraintSystem([self])
             else:
                 return ConstraintSystem([self, other])
 
@@ -119,19 +204,25 @@ class OneOfConstraint(BaseObject):
 
     def constrains(self, sym):
         return sym in self.syms
+
+
+    def simplify(self):
+        if len(self.con_sys) == 2**len(self.syms):
+            return ConstraintSystem([AnyConstraint(s) for s in self.syms])
     
 
     def generate(self):
         results = []
 
         for con in self.con_sys:
-            gen = con.generate()
-            combined = {}
+            results.extend(con.generate())
+            # gen = con.generate()
+            # combined = {}
 
-            for g in gen:
-                combined.update(g)
+            # for g in gen:
+            #     combined.update(g)
 
-            results.append(combined)
+            # results.append(combined)
 
         return results
 
@@ -162,7 +253,21 @@ class OneOfConstraint(BaseObject):
 
             if len(subset) == 1:
                 return list(subset)[0]
-            return ConstraintSystem([OneOfConstraint(self.syms.union(other.syms), subset)])
+            
+            syms  = self.syms.union(other.syms)
+            oneof = OneOfConstraint(syms, subset)
+            simp  = oneof.simplify()
+
+            if simp:
+                return simp 
+
+            return ConstraintSystem([oneof])
+
+        elif type(other) is AnyConstraint:
+            if other.sym in self.syms:
+                return ConstraintSystem([self])
+            else:
+                return ConstraintSystem([self, other])
 
         elif type(other) is ConstraintSystem:
             return other + self
@@ -184,7 +289,7 @@ class ConstraintSystem(BaseObject):
     
 
     def generate(self):
-        results = []
+        results = set()
 
         for product in itertools.product(*[con.generate() for con in self.constraints]):
             combined = {}
@@ -192,9 +297,9 @@ class ConstraintSystem(BaseObject):
             for g in list(product):
                 combined.update(g)
 
-            results.append(combined)
+            results.add(tuple(combined.items()))
 
-        return results
+        return [dict(r) for r in results]
 
 
     def __add__(self, other):
@@ -211,8 +316,22 @@ class ConstraintSystem(BaseObject):
         # STEP 2: Separate ALL OOs into single OO system
         # STEP 3: Merge EQs and OOs
 
-        s_eq = [con for con in self.constraints if type(con) is EqualsConstraint]
-        o_eq = [con for con in other.constraints if type(con) is EqualsConstraint]
+        def separate_by_type(constraints):
+            cons_by_type = {EqualsConstraint: set(), AnyConstraint: set(), OneOfConstraint: set()}
+            for con in constraints:
+                con_t = type(con)
+                cons_by_type[con_t].add(con)
+            
+            return cons_by_type
+        
+        print("!! BEGIN CS MERGE !!", self, other)
+
+        s_type_map = separate_by_type(self.constraints)
+        o_type_map = separate_by_type(other.constraints)
+
+
+        s_eq = s_type_map[EqualsConstraint]
+        o_eq = o_type_map[EqualsConstraint]
 
         eq_constraints = set()
         for s in s_eq:
@@ -226,26 +345,34 @@ class ConstraintSystem(BaseObject):
             eq_constraints = set(o_eq)
 
 
-        s_oo = [con for con in self.constraints if type(con) is OneOfConstraint]
-        o_oo = [con for con in other.constraints if type(con) is OneOfConstraint]
+        s_oo = s_type_map[OneOfConstraint]
+        o_oo = o_type_map[OneOfConstraint]
 
         simplified_oos = set()
+        extracted_anys = set()
+        print()
 
         # Decompose OOs
         for oo in {*s_oo, *o_oo}:
             curr = oo
             for eq in copy(eq_constraints):
                 if eq.sym in oo.syms:
+                    print()
+                    print("EQ OO", eq, oo)
                     curr += eq
+                    print("curr", curr)
 
                     # Remove eq from the system
-                    eqs = [con for con in curr.constraints if type(con) is EqualsConstraint]
-                    oos = [con for con in curr.constraints if type(con) is OneOfConstraint]
-                    eq_constraints = eq_constraints.union(set(eqs))
+                    c_type_map = separate_by_type(curr.constraints)
+                    eqs  = c_type_map[EqualsConstraint]
+                    oos  = c_type_map[OneOfConstraint]
+                    anys = c_type_map[AnyConstraint]
+                    eq_constraints = eq_constraints.union(eqs)
+                    extracted_anys = extracted_anys.union(anys)
 
-                    # We've decomposed it; break
+                    # Check if it's been decomposed
                     if oos:
-                        curr = oos[0]
+                        curr = list(oos)[0]
                     else:
                         curr = None
                         break
@@ -262,9 +389,26 @@ class ConstraintSystem(BaseObject):
 
             simple_oo = list((oo_a + oo_b).constraints)[0]
             simplified_oos.add(simple_oo)
+
+
+        any_cons     = extracted_anys.union(s_type_map[AnyConstraint]).union(o_type_map[AnyConstraint])
+        removed_anys = set()
+
+        for any_c in any_cons:
+            for oo in simplified_oos:
+                if any_c.sym in oo.sym:
+                    removed_anys.add(any_c)
+                    break
+
+            for eq in eq_constraints:
+                if any_c.sym == eq.sym:
+                    removed_anys.add(any_c)
+                    break
+            
         
 
-        return ConstraintSystem(eq_constraints.union(simplified_oos))
+        good_anys = any_cons.difference(removed_anys)
+        return ConstraintSystem(good_anys.union(eq_constraints).union(simplified_oos))
 
 
 
@@ -384,21 +528,40 @@ def poly_rec(p, output, constraints):
         x_cons_1 = poly_rec(p[1], 1, ConstraintSystem())
         print("not p[0] and not output RECURSIVE RETURN, x_cons_1")
 
+        # If a == 0, then x is actually unconstrained!
+        # syms = {}
+        # while True:
+        #     R = p.coeff_ring
+        #     if type(R.one) is Polynomial:
+        #         syms.add(R.symbol)
+        #     else:
+        #         break
+        
+        any_syms = get_syms(x_cons_0).union(get_syms(x_cons_1))
+        print(a)
+        
+        # x_cons_any = OneOfConstraint(any_syms,
+        #     [ConstraintSystem([EqualsConstraint(s, v) for s,v in zip(any_syms, vals)]) for vals in itertools.product(*[[0, 1]]*len(any_syms))]
+        # )
+        x_cons_any = [AnyConstraint(s) for s in any_syms]
+
 
         print(x_cons_0)
         print(x_cons_1)
-
-        # constraints += OneOfConstraint({a}.union(get_syms(x_cons_0)).union(get_syms(x_cons_1)), [
-        #     ConstraintSystem([EqualsConstraint(a, 0), *x_cons_0.constraints]),
-        #     ConstraintSystem([EqualsConstraint(a, 1), *x_cons_0.constraints]),
-        #     ConstraintSystem([EqualsConstraint(a, 0), *x_cons_1.constraints])
-        # ])
+        print("!!!!!!!!!!!!")
+        print("!!! x_cons_any !!!", x_cons_any)
+        print("!!!!!!!!!!!!")
 
         constraints += OneOfConstraint({a}.union(get_syms(x_cons_0)).union(get_syms(x_cons_1)), [
-            EqualsConstraint(a, 0) + x_cons_0,
-            EqualsConstraint(a, 1) + x_cons_0,
-            EqualsConstraint(a, 0) + x_cons_1
+            ConstraintSystem([EqualsConstraint(a, 0), *x_cons_any]),
+            ConstraintSystem([AnyConstraint(a), *x_cons_0.constraints])
         ])
+
+        # constraints += OneOfConstraint({a}.union(any_syms), [
+        #     EqualsConstraint(a, 0) + x_cons_0,
+        #     EqualsConstraint(a, 1) + x_cons_0,
+        #     EqualsConstraint(a, 0) + x_cons_1
+        # ])
 
 
     # This layer is null, just hop to the next
