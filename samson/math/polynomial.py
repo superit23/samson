@@ -9,6 +9,7 @@ from samson.math.fft.karatsuba import karatsuba
 from samson.utilities.general import add_or_increment
 from samson.utilities.manipulation import get_blocks
 from samson.utilities.runtime import RUNTIME
+from copy import copy
 from types import FunctionType
 import itertools
 
@@ -246,6 +247,15 @@ class Polynomial(RingElement):
             coeffs   = self.coeffs
             total    = self.coeff_ring.zero
             last_idx = coeffs.last()
+
+            # We need this for composition in multivariate polynomials
+            if hasattr(val, "ring") and val.ring.is_superstructure_of(self.ring):
+                total  = val.ring.zero
+                coeffs = copy(coeffs)
+
+                for k,v in coeffs.values.items():
+                    coeffs.values[k] = val.ring(v)
+            
 
             for idx, c in coeffs.values.items()[::-1]:
                 total *= x**(last_idx-idx)

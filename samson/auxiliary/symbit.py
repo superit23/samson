@@ -3,6 +3,9 @@ from samson.math.polynomial import Polynomial
 from samson.math.algebra.rings.integer_ring import ZZ
 from samson.math.symbols import Symbol
 from samson.utilities.bytes import Bytes
+from samson.auxiliary.constraint_system import bv_process, SolveFor
+from copy import copy
+from typing import List
 import linecache
 from enum import Enum
 import itertools
@@ -104,7 +107,17 @@ def collapse_poly(poly):
     # We can collapse the coefficients above degree 0 into a new degree 1
     c1 = sum(list(poly >> 1))
     c0 = poly[0]
-    return poly.ring([c0, c1])
+
+    # This is about 2x as slow, but it handles when poly can't coerce c0 or c1
+    if poly.ring in (c0.ring, c1.ring) or c1.ring.is_superstructure_of(poly.ring) or c0.ring.is_superstructure_of(poly.ring):
+        result = c1*poly.symbol + c0
+
+        if result.degree() > 1:
+            result = collapse_poly(result)
+    else:
+        result = poly.ring([c0, c1])
+
+    return result
 
 
 class SymBit(BaseObject):
@@ -187,6 +200,9 @@ class SymBit(BaseObject):
         body = body.replace('& 1', '')
         body = body.replace('~~', '')
 
+        while '  ' in body:
+            body = body.replace('  ', ' ')
+
 
         if hasattr(self, 'func'):
             func_name = self.func.__name__
@@ -250,7 +266,7 @@ class IOTable(BaseObject):
 
 
 
-    def build_symbit(self) -> 'Symbits':
+    def build_symbit(self) -> 'Symbit':
         symbols, zero, one = build_symbols(self.symbols)
         func = zero
 
@@ -325,7 +341,6 @@ def check_equiv(func1, func2, num_args):
 
 
 
-
 class SizableMeta(type):
     SIZABLE_CLS = None
 
@@ -355,6 +370,7 @@ class SymbolSet(BaseObject):
         return self.vars[idx]
 
 
+
 class FixedBitVector(BaseObject):
     SIZE = None
 
@@ -365,7 +381,7 @@ class FixedBitVector(BaseObject):
 
     def __getitem__(self, idx):
         return self.symbols[idx]
-    
+
 
     @property
     def zero(self):
@@ -392,11 +408,24 @@ class FixedBitVector(BaseObject):
         for var, val in zip(self.vars, vals):
             val_dict.update(val_to_dict(var, val))
 
+
         for var, val in kwargs.items():
             if var in v_names:
                 val_dict[var] = val
             else:
-                val_dict.update(val_to_dict(v_map[var], val))
+                # Handle unwrapping bitvectors like a=bv
+                if hasattr(val, "symbols"):
+                    val_dict.update({s.repr:v for s,v in zip(v_map[var], val.symbols)})
+                
+                # Handle unwrapping concrete values like a=7
+                else:
+                    val_dict.update(val_to_dict(v_map[var], val))
+
+
+        # Strip symbits
+        for k,v in val_dict.items():
+            if type(v) is SymBit:
+                val_dict[k] = v.value
 
         binary = [a(**val_dict) for a in self.symbols]
 
@@ -405,8 +434,12 @@ class FixedBitVector(BaseObject):
         return bv
     
 
+    def solve(self, *bits: List[SolveFor]):
+        return bv_process(self, bits)
+
+
     def is_constant(self):
-        return all(s.value if hasattr(s, 'value') else s.val in ZZ for s in self.symbols)
+        return all((s.value if hasattr(s, 'value') else s.val) in ZZ for s in self.symbols)
     
 
     def int(self):
@@ -419,6 +452,10 @@ class FixedBitVector(BaseObject):
     def __int__(self):
         return self.int()
 
+
+
+    def inject_locals(self, locals):
+        locals.update({symbit.repr:SymBit(symbit) for sublist in self.vars.vars for symbit in sublist})
 
 
     def _create_copy(self):
@@ -437,6 +474,11 @@ class FixedBitVector(BaseObject):
         elif type(other) is SymBit:
             bv = self._create_copy()
             bv.symbols = [self.zero]*(self.SIZE-1) + [other]
+            return bv
+
+        elif type(other) is list and len(other) == self.SIZE:
+            bv = self._create_copy()
+            bv.symbols = copy(other)
             return bv
 
         else:
