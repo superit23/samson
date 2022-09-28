@@ -357,7 +357,7 @@ class ConstraintSystem(BaseObject):
             for g in list(product):
                 combined.update(g)
 
-            results.add(tuple(combined.items()))
+            results.add(tuple(sorted(tuple(combined.items()))))
 
         return [dict(r) for r in results]
     
@@ -416,6 +416,14 @@ class ConstraintSystem(BaseObject):
             eq_constraints = set(o_eq)
 
 
+        print("START CS ADD")
+        print("self", self)
+        print("other", other)
+        print()
+
+        print("Initial eq_constraints", eq_constraints)
+
+
         s_oo = s_type_map[OneOfConstraint]
         o_oo = o_type_map[OneOfConstraint]
 
@@ -424,44 +432,57 @@ class ConstraintSystem(BaseObject):
         # print()
 
         # Decompose OOs
-        for oo in {*s_oo, *o_oo}:
-            curr = oo
-            for eq in copy(eq_constraints):
-                if eq.sym in oo.syms:
-                    # print()
-                    # print("EQ OO", eq, oo)
-                    curr += eq
-                    # print("curr", curr)
+        all_oos = {*s_oo, *o_oo}
+        changed = True
 
-                    # Remove eq from the system
-                    c_type_map = separate_by_type(curr.constraints)
-                    eqs  = c_type_map[EqualsConstraint]
-                    oos  = c_type_map[OneOfConstraint]
-                    anys = c_type_map[AnyConstraint]
-                    eq_constraints = eq_constraints.union(eqs)
-                    extracted_anys = extracted_anys.union(anys)
+        while changed:
+            changed = False
 
-                    # Check if it's been decomposed
-                    if oos:
-                        curr = list(oos)[0]
-                        if type(curr) is AnyConstraint:
-                            extracted_anys.add(curr)
+            for oo in all_oos:
+                curr = oo
+                for eq in copy(eq_constraints):
+                    if eq.sym in oo.syms:
+                        print()
+                        print("EQ OO", eq, oo)
+                        curr += eq
+                        print("curr", curr)
+
+                        # Remove eq from the system
+                        c_type_map = separate_by_type(curr.constraints)
+                        eqs  = c_type_map[EqualsConstraint]
+                        oos  = c_type_map[OneOfConstraint]
+                        anys = c_type_map[AnyConstraint]
+                        eq_constraints = eq_constraints.union(eqs)
+                        extracted_anys = extracted_anys.union(anys)
+
+
+                        # Check if it's been decomposed
+                        if oos:
+                            curr = list(oos)[0]
+                            if curr != oo:
+                                changed = True
+                        else:
                             curr = None
+                            changed = True
                             break
-                    else:
-                        curr = None
-                        break
 
-            if curr:
-                simp = curr.simplify()
-                if simp:
-                    simp_types = separate_by_type(simp.constraints)
-                    extracted_anys = extracted_anys.union(simp_types[AnyConstraint])
-                    eq_constraints = eq_constraints.union(simp_types[EqualsConstraint])
-                    simplified_oos = simplified_oos.union(simp_types[OneOfConstraint])
-                else:
-                    simplified_oos.add(curr)
+                if curr:
+                    simp = curr.simplify()
+                    if simp:
+                        simp_types = separate_by_type(simp.constraints)
+                        extracted_anys = extracted_anys.union(simp_types[AnyConstraint])
+                        eq_constraints = eq_constraints.union(simp_types[EqualsConstraint])
+                        simplified_oos = simplified_oos.union(simp_types[OneOfConstraint])
+                    else:
+                        simplified_oos.add(curr)
+            
+            if changed:
+                all_oos = simplified_oos
+                simplified_oos = set()
         
+
+        print("eq_constraints after oo decompose", eq_constraints)
+        print("extracted_anys after oo decompose", extracted_anys)
 
         # Combine OOs
         while len(simplified_oos) > 1:
@@ -517,74 +538,20 @@ class ConstraintSystem(BaseObject):
         # Check that EQs don't contradict
         for eq_a in eq_constraints:
             for eq_b in eq_constraints:
-                eq_a + eq_b
+                try:
+                    eq_a + eq_b
+                except NoSolutionException:
+                    print("NO SOLUTION")
+                    raise NoSolutionException
 
 
         good_anys = any_cons.difference(removed_anys)
-        return ConstraintSystem(good_anys.union(eq_constraints).union(re_simplified))
+        result = ConstraintSystem(good_anys.union(eq_constraints).union(re_simplified))
+        print("RESULT", result)
+        print()
+        print()
+        return result
 
-
-
-sys0 = ConstraintSystem([
-    EqualsConstraint('a3', 1)
-])
-
-sys1 = ConstraintSystem([
-    EqualsConstraint('a3', 1)
-])
-
-sys2 = ConstraintSystem([
-    EqualsConstraint('a3', 0)
-])
-
-sys3 = ConstraintSystem([
-    EqualsConstraint('a2', 0)
-])
-
-sys4 = ConstraintSystem([
-    OneOfConstraint(syms=['a3', 'a2'], con_sys=[
-        ConstraintSystem([EqualsConstraint('a3', 0), EqualsConstraint('a2', 0)]),
-        ConstraintSystem([EqualsConstraint('a3', 1), EqualsConstraint('a2', 0)]),
-        ConstraintSystem([EqualsConstraint('a3', 0), EqualsConstraint('a2', 1)]),
-    ])])
-
-
-sys5 = ConstraintSystem([
-    OneOfConstraint(syms=['a3', 'a2'], con_sys=[
-        ConstraintSystem([EqualsConstraint('a3', 1), EqualsConstraint('a2', 0)]),
-        ConstraintSystem([EqualsConstraint('a3', 1), EqualsConstraint('a2', 0)]),
-        ConstraintSystem([EqualsConstraint('a3', 1), EqualsConstraint('a2', 1)]),
-    ])])
-
-
-
-sys6 = ConstraintSystem([
-    OneOfConstraint(syms=['a0', 'a2'], con_sys=[
-        ConstraintSystem([EqualsConstraint('a0', 1), EqualsConstraint('a2', 0)]),
-        ConstraintSystem([EqualsConstraint('a0', 1), EqualsConstraint('a2', 0)]),
-        ConstraintSystem([EqualsConstraint('a0', 1), EqualsConstraint('a2', 1)]),
-    ])])
-
-
-sys7 = ConstraintSystem([
-    EqualsConstraint('a2', 0),
-    EqualsConstraint('a3', 0)
-])
-
-sys8 = ConstraintSystem([
-    EqualsConstraint('a2', 0),
-    EqualsConstraint('a0', 0)
-])
-
-sys9 = ConstraintSystem([
-    OneOfConstraint(syms=['a1', 'a3'], con_sys=[
-        ConstraintSystem([EqualsConstraint('a1', 0), EqualsConstraint('a3', 0)]),
-        ConstraintSystem([EqualsConstraint('a1', 1), EqualsConstraint('a3', 0)]),
-        ConstraintSystem([EqualsConstraint('a1', 0), EqualsConstraint('a3', 1)]),
-    ])])
-
-
-sys10 = ConstraintSystem([EqualsConstraint('a1', 1)])
 
 class SolveFor(Enum):
     ONE  = 1
@@ -593,7 +560,7 @@ class SolveFor(Enum):
 
 
 def bv_process(bv, outputs):
-    constraints = ConstraintSystem()
+    constraints = ConstraintSystem([AnyConstraint(var.repr) for sublist in bv.vars.vars for var in sublist])
     for s, out in zip(bv.symbols, outputs):
         p = s.value
         if type(out) is SolveFor:
@@ -626,6 +593,9 @@ def poly_rec(p, output, constraints):
 
     # x*a == 1, then x == 1 AND a == 1
     if not p[0] and output:
+        if not p[1]:
+            raise NoSolutionException
+
         print('not p[0] and output')
         constraints += EqualsConstraint(a, 1)
         print("CONSTRAINTS ARE", constraints)
@@ -646,24 +616,22 @@ def poly_rec(p, output, constraints):
         #print(p[1], 0)
         print("not p[0] and not output; solving p[1] for 0")
         x_cons_0 = poly_rec(p[1], 0, ConstraintSystem())
-        # print("not p[0] and not output RECURSIVE RETURN, x_cons_0")
+
         print("not p[0] and not output; solving p[1] for 1")
-        x_cons_1 = poly_rec(p[1], 1, ConstraintSystem())
-        # print("not p[0] and not output RECURSIVE RETURN, x_cons_1")
 
-        any_syms = x_cons_0.get_syms().union(x_cons_1.get_syms())
-        # print(a)
+        # We only need this for the variables. If it doesn't work,
+        # just throw it out. This should really only happen if
+        # we're dealing with a constant anyway
+        try:
+            x_cons_1 = poly_rec(p[1], 1, ConstraintSystem())
+            x_cons_1_syms = x_cons_1.get_syms()
+        except NoSolutionException:
+            x_cons_1_syms = set()
 
+        any_syms   = x_cons_0.get_syms().union(x_cons_1_syms)
         x_cons_any = [AnyConstraint(s) for s in any_syms]
 
         assert a not in any_syms
-
-
-        # print(x_cons_0)
-        # print(x_cons_1)
-        # print("!!!!!!!!!!!!")
-        # print("!!! x_cons_any !!!", x_cons_any)
-        # print("!!!!!!!!!!!!")
 
         constraints += OneOfConstraint({a}.union(any_syms), [
             ConstraintSystem([EqualsConstraint(a, 0), *x_cons_any]),
@@ -675,8 +643,11 @@ def poly_rec(p, output, constraints):
     elif p[0] and not p[1]:
         print('p[0] and not p[1]')
 
-        # Make sure it's not a constant
-        if p[0] != p.coeff_ring.one:
+        # If the constant doesn't match the output, throw
+        if p[0] == p.coeff_ring.one:
+            if not output:
+                raise NoSolutionException
+        else:
             # print(repr(p[0]))
             constraints = poly_rec(p[0], output, constraints)
             # print("p[0] and not p[1] RECURSIVE RETURN")

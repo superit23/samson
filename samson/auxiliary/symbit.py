@@ -434,7 +434,10 @@ class FixedBitVector(BaseObject):
         return bv
     
 
-    def solve(self, *bits: List[SolveFor]):
+    def solve(self, bits: List[SolveFor]):
+        if type(bits) is int:
+            bits = [int(b) for b in bin(bits)[2:].zfill(self.SIZE)]
+
         return bv_process(self, bits)
 
 
@@ -688,6 +691,10 @@ class ADVOP:
 
 
     def MUL(a, b):
+        """
+        References:
+            https://en.wikipedia.org/wiki/Booth%27s_multiplication_algorithm
+        """
         # Initialize Booth's algorithm
         zero  = a._coerce(0)
         size  = a.SIZE
@@ -720,7 +727,7 @@ class ADVOP:
             P_low  = (P_mid & 1) << (size-1)
             P_mid  = (P_mid >> 1) ^ ((P_hi & 1) << (size-1))
             P_hi >>= 1
-            
+
 
         return P_mid
 
