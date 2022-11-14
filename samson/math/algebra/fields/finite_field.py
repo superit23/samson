@@ -16,7 +16,7 @@ class FiniteFieldElement(FieldElement):
         """
         self.val = field.internal_field.coerce(val)
         super().__init__(field)
-    
+
 
     def __reprdir__(self):
         return ['val', 'field']

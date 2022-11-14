@@ -157,7 +157,7 @@ class MultiplicativeGroup(Ring):
                 else:
                     raise NotImplementedError()
 
-            elif type(self.ring) is FiniteField:
+            elif issubclass(type(self.ring), FiniteField):
                 self.order_cache = self.ring.order()-1
 
 

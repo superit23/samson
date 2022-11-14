@@ -175,14 +175,11 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
         Returns:
             list: List with entries formatted as (`H` "auth key", `t` "tag mask").
         """
-        from samson.math.algebra.all import FF, ZZ
+        from samson.math.algebra.all import GF2
         from samson.math.polynomial import Polynomial
-        from samson.math.symbols import Symbol
         from samson.block_ciphers.rijndael import Rijndael
 
-        x = Symbol('x')
-        _ = (ZZ/ZZ(2))[x]
-        F = FF(2, 128, reducing_poly=x**128 + x**7 + x**2 + x + 1)
+        F = GF2(128)
 
         def int_to_elem(a):
             return F([int(bit) for bit in bin(a)[2:].zfill(128)])

@@ -406,7 +406,7 @@ def pollards_kangaroo(g: 'RingElement', y: 'RingElement', a: int, b: int, iterat
 
 _CADO_DLOG_CACHE = {}
 
-def _cado_nfs_dlog(y: int, q: int, p: int) -> 'Factors':
+def _cado_nfs_dlog(y: int, q: int, p: int, *extra_args) -> 'Factors':
     # https://stackoverflow.com/a/27661481
     import subprocess
 
@@ -419,10 +419,10 @@ def _cado_nfs_dlog(y: int, q: int, p: int) -> 'Factors':
 
     if (q, p) in _CADO_DLOG_CACHE:
         snapshot = _CADO_DLOG_CACHE[(q, p)]
-        z_log_b = subprocess.check_output([RUNTIME.cado_nfs_loc, snapshot.decode(), f'target={y}'], stderr=subprocess.DEVNULL)
+        z_log_b = subprocess.check_output([RUNTIME.cado_nfs_loc, snapshot.decode(), f'target={y}', *extra_args], stderr=subprocess.DEVNULL)
         return int(z_log_b.strip())
     else:
-        pipes = subprocess.Popen([RUNTIME.cado_nfs_loc, '-dlp', '-ell', str(q), f'target={y}', str(p)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        pipes = subprocess.Popen([RUNTIME.cado_nfs_loc, '-dlp', '-ell', str(q), f'target={y}', str(p), *extra_args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         std_out, std_err = pipes.communicate()
 
@@ -443,6 +443,16 @@ def cado_nfs_dlog(g: int, y: int, q: int, p: int) -> int:
     ZZ = _integer_ring.ZZ
     g_log = _cado_nfs_dlog(g, q, p)
     y_log = _cado_nfs_dlog(y, q, p)
+
+    W = ZZ/ZZ(q)
+    return int(W(y_log)/W(g_log))
+
+
+# TODO: How to do individual log? This doesn't work yet
+def cado_nfs_dlog_k2(g, y, q, p) -> int:
+    ZZ = _integer_ring.ZZ
+    g_log = _cado_nfs_dlog(g, q, p, "-gfpext", "2")
+    y_log = _cado_nfs_dlog(y, q, p, "-gfpext", "2")
 
     W = ZZ/ZZ(q)
     return int(W(y_log)/W(g_log))

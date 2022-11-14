@@ -87,7 +87,7 @@ class SHA2(MerkleDamgardConstruction):
 
         Parameters:
             message (bytes): Message to hash.
-        
+
         Returns:
             generator: Generator yielding states.
         """
@@ -106,7 +106,7 @@ class SHA2(MerkleDamgardConstruction):
         Parameters:
             block (bytes): Block being digested.
             state (bytes): Current digest state.
-        
+
         Returns:
             Bytes: Hash output.
         """

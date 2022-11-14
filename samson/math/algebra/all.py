@@ -1,7 +1,7 @@
 from .fields.complex_field import ComplexField, CC, ComplexElement
 from .fields.finite_field import FiniteField, FiniteFieldElement
 from .fields.fraction_field import FractionField, FractionFieldElement
-# from samson.math.algebra.fields.number_field import NumberField, NumberFieldElement, QuadraticField
+from .fields.gf2 import GF2, GF2Element
 from .rings.order import Order, OrderElement, QuadraticField, CyclotomicField
 from .fields.number_field import NumberField, NumberFieldElement
 from .fields.real_field import RealField, RR, RealElement

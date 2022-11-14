@@ -1,4 +1,5 @@
 from samson.math.algebra.fields.field import Field, FieldElement
+from samson.math.factorization.factors import Factors
 
 
 class RationalFunctionField(Field):
@@ -9,6 +10,17 @@ class RationalFunctionField(Field):
         self.one   = self(1)
         self.zero  = self(0)
         self.field = field
+    
+
+    def __hash__(self):
+        dic_items  = []
+        for k,v in self.__dict__.items():
+            if k not in ('symbol', 'one', 'zero'):
+                if type(v) is list:
+                    v = tuple(v)
+                dic_items.append((k, v))
+            
+        return hash((self.__class__, tuple(dic_items)))
 
 
     # def __truediv__(self, element: 'RingElement') -> 'QuotientRing':
@@ -51,20 +63,24 @@ class RationalFunctionFieldElement(FieldElement):
         super().__init__(field)
     
 
+    def __invert__(self) -> 'RingElement':
+        return self.field(~self.val)
+
+
     def factor(self):
         num = self.val.numerator.factor()
         den = self.val.denominator.factor()
-        return num + {k:-v for k,v in den.items()}
+        return Factors({self.field(k):v for k,v in num.items()}) + {self.field(k):-v for k,v in den.items()}
 
 
 
 class FiniteFunctionField(RationalFunctionField):
-    def __init__(self, symbol, field):
-        self.symbol = symbol
-        self.symbol.top_ring = self
-        self.one   = self(1)
-        self.zero  = self(0)
-        self.field = field
+    # def __init__(self, symbol, field):
+    #     self.symbol = symbol
+    #     self.symbol.top_ring = self
+    #     self.one   = self(1)
+    #     self.zero  = self(0)
+    #     self.field = field
 
 
 

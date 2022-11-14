@@ -128,7 +128,7 @@ def export_pki(pki_obj, arguments):
                 lit_groups = matches.groups()
                 for group in lit_groups:
                     v = v.replace(group, preprocessed_literals[group])
-                
+
             processed_args[i][1] = v
         
 

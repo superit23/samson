@@ -1,15 +1,14 @@
 from samson.math.factorization.factors import Factors
-from samson.math.general import find_prime, is_prime
+from samson.math.general import find_prime, is_power_of_two
 from samson.utilities.general import binary_search_list
 from samson.utilities.runtime import RUNTIME
-from samson.utilities.exceptions import NotInvertibleException, ProbabilisticFailureException
+from samson.utilities.exceptions import ProbabilisticFailureException
+from samson.math.factorization.ecm import ecm, ECM_BOUNDS
 from types import FunctionType
 from tqdm import tqdm
 import math
 
 from samson.auxiliary.lazy_loader import LazyLoader
-_integer_ring = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
-_poly         = LazyLoader('_poly', globals(), 'samson.math.polynomial')
 _samson_math  = LazyLoader('_samson_math', globals(), 'samson.math.general')
 _siqs         = LazyLoader('_siqs', globals(), 'samson.math.factorization.siqs')
 
@@ -253,6 +252,37 @@ def pk_1_smallest_divisor(prime_power: int) -> int:
     return list(factor(2**d-1, use_trial=False, perfect_power_checks=False, user_stop_func=find_one))[0]
 
 
+
+FAC_TABLE_22K1 = [(3,), (5,), (17,), (257,), (65537,), (641, 6700417), (274177, 67280421310721), (59649589127497217, 5704689200685129054721), (1238926361552897,  93461639715357977769163558199606896584051237541638188580280321), (2424833,  7455602825647884208337395736200454918783366342657,  741640062627530801524787141901937474059940781097519023905821316144415759504705008092818711693940737), (45592577,  6487031809,  4659775785220018543264560743076778192897,  130439874405488189727484768796509903946608530841611892186895295776832416251471863574140227977573104895898783928842923844831149032913798729088601617946094119449010595906710130531906171018354491609619193912488538116080712299672322806217820753127014424577), (319489,  974849,  167988556341760475137,  3560841906445833920513,  173462447179147555430258970864309778377421844723664084649347019061363579192879108857591038330408837177983810868451546421940712978306134189864280826014542758708589243873685563973118948869399158545506611147420216132557017260564139394366945793220968665108959685482705388072645828554151936401912464931182546092879815733057795573358504982279280090942872567591518912118622751714319229788100979251036035496917279912663527358783236647193154777091427745377038294584918917590325110939381322486044298573971650711059244462177542540706913047034664643603491382441723306598834177)]
+
+
+def _factor_22kp1(n: int):
+    """
+    Factors numbers of the form 2^2^k+1
+    """
+    assert is_power_of_two(n-1)
+    m = int(math.log2(n-1))
+
+    assert is_power_of_two(m)
+    k = int(math.log2(m))
+
+    return Factors({fac: 1 for fac in FAC_TABLE_22K1[k]})
+
+
+def _factor_22km1(n: int):
+    """
+    Factors numbers of the form 2^2^k-1
+    """
+    k = math.log2(math.log2(n+1))
+    assert k.is_integer() and (n+1).bit_length() > n.bit_length() and k <= len(FAC_TABLE_22K1)
+
+    facs = Factors()
+    for i in range(int(k)):
+        facs.factors.update({fac: 1 for fac in FAC_TABLE_22K1[i]})
+    
+    return facs
+
+
 def _modular_lucas(v: int, a: int, n: int) -> int:
     """
     Internal use. Multiplies along a Lucas sequence modulo n.
@@ -265,7 +295,6 @@ def _modular_lucas(v: int, a: int, n: int) -> int:
         else:
             v1, v2 = b, (v2**2 - 2) % n
     return v1
-
 
 
 def williams_pp1(n: int, max_bound: int=None, max_attempts: int=50, exp_func: FunctionType=lambda n, p: n.bit_length() // p.bit_length()) -> int:
@@ -449,85 +478,6 @@ def pollards_rho(n: int, max_attempts: int=None) -> int:
     return g
 
 
-def ecm(n: int, B1: int=10, B2: int=100, attempts: int=1000) -> int:
-    """
-    Uses Lenstra's Elliptic Curve Method to probabilistically find a factor of `n`.
-
-    Parameters:
-        n        (int): Integer to factor.
-        B1       (int): Stage 1 bound for max factor.
-        B2       (int): Maximum bound. Used in stage 2 if no factors were found.
-        attempts (int): Number of attempts to perform.
-
-    Returns:
-        int: Factor of `n`.
-
-    Examples:
-        >>> from samson.math.factorization.general import ecm
-        >>> ecm(26515460203326943826)
-        2
-
-    """
-    from samson.math.algebra.curves.weierstrass_curve import WeierstrassCurve
-    Polynomial = _poly.Polynomial
-    ZZ  = _integer_ring.ZZ
-    gcd = _samson_math.gcd
-    sieve_of_eratosthenes = _samson_math.sieve_of_eratosthenes
-
-    primes = list(sieve_of_eratosthenes(B2))
-
-    def try_candidate(curr, k):
-        try:
-            curr *= k
-
-        except NotInvertibleException as e:
-            res = gcd(e.parameters['a'], n)
-            if res != R.one and (not is_poly or res.is_monic()):
-                if peel_ring:
-                    res = res.val
-
-                return curr, res
-
-        return curr, None
-
-
-    # For convenience
-    peel_ring = False
-    if type(n) is int:
-        peel_ring = True
-        n = ZZ(n)
-
-    R = n.ring
-    is_poly = type(n) is Polynomial
-    for _ in range(attempts):
-        curve, g = WeierstrassCurve.random_curve(n)
-
-        # Free factor!
-        if is_poly and g.is_monic() and g > R.one or not is_poly and g > R.one:
-            if peel_ring:
-                g = g.val
-            return g
-
-
-        curr = curve.G
-        for p_idx, p in enumerate(primes):
-            if p >= B1:
-                break
-
-            curr, fac = try_candidate(curr, p**int(math.log(B1, p)))
-            if fac:
-                return fac
-
-
-        # Stage 2
-        for p in primes[p_idx:]:
-            curr, fac = try_candidate(curr, p)
-            if fac:
-                return fac
-
-    raise ProbabilisticFailureException("Factor not found")
-
-
 def is_composite_power(n: int, precision: float=0.6) -> (bool, int, int):
     """
     Determines if `n` is a composite power. If it is, the root and exponent are returned.
@@ -588,11 +538,16 @@ def is_composite_power(n: int, precision: float=0.6) -> (bool, int, int):
 
 
 
-_POLLARD_QUICK_ITERATIONS = 25
 _FACTOR_USER_CACHE = {}
+_RHO_MAX_BITS  = 90
+_ECM_MAX_BITS  = 180
+_ECM_SUPREMACY = 70
+_POLLARD_QUICK_ITERATIONS = 25
+_ECM_QUICK_ITERATIONS = 100
+_CADO_SUPREMACY = 256
 
 @RUNTIME.global_cache()
-def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rho_max_bits: int=90, use_msieve: bool=True, use_cado_nfs: bool=True, use_siqs: bool=True, use_smooth_p: bool=False, use_ecm: bool=False, ecm_attempts: int=100000, perfect_power_checks: bool=True, mersenne_check: bool=True, visual: bool=False, reraise_interrupt: bool=False, user_stop_func: FunctionType=None) -> Factors:
+def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, use_msieve: bool=True, use_cado_nfs: bool=True, use_siqs: bool=False, use_smooth_p: bool=False, use_ecm: bool=True, ecm_attempts: int=10000, perfect_power_checks: bool=True, mersenne_check: bool=True, visual: bool=False, reraise_interrupt: bool=False, user_stop_func: FunctionType=None) -> Factors:
     """
     Factors an integer `n` into its prime factors.
 
@@ -601,7 +556,6 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
         use_trial            (bool): Whether or not to use trial division.
         limit                 (int): Upper limit of factors tried in trial division.
         use_rho              (bool): Whether or not to use Pollard's rho factorization.
-        rho_max_bits          (int): Threshold in which Pollard's rho is considered ineffective.
         use_msieve           (bool): Use msieve if available.
         use_cado_nfs         (bool): Use Cado-NFS if available.
         use_siqs             (bool): Whether or not to use the Self-Initializing Quadratic Sieve.
@@ -713,20 +667,46 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
                     break
 
             return n, False
+        except ProbabilisticFailureException:
+            return n, False
         except KeyboardInterrupt:
             return n, True
 
 
     # Actual factorization
     try:
-        if mersenne_check and is_power_of_two(original+1):
-            if visual:
-                log.info("Power of two detected; using Mersenne factorization")
+        if mersenne_check:
+            if is_power_of_two(original+1):
+                if visual:
+                    log.info("Power of two detected; using Mersenne factorization")
 
-            k = int(math.log(original+1, 2))
-            facs, _ = _mersenne_factor(factor(k), use_siqs=use_siqs, visual=visual, progress_update=progress_update)
-            progress_finish()
-            return facs
+                k = int(math.log(original+1, 2))
+
+                if is_power_of_two(k) and k <= 2**len(FAC_TABLE_22K1):
+                    return _factor_22km1(original)
+                else:
+                    facs, _ = _mersenne_factor(factor(k), use_siqs=use_siqs, visual=visual, progress_update=progress_update)
+                    progress_finish()
+                    return facs
+
+            elif is_power_of_two(original-1):
+                try:
+                    k = int(math.log(original-1, 2))
+                    k_facs = factor(k)
+
+                    if 2 in k_facs:
+                        if visual:
+                            log.info("Power of two detected; using 2^k+1 factorization")
+
+                        two_facs = _factor_22kp1(2**2**k_facs[2]+1)
+                        factors += two_facs
+                        d        = two_facs.recombine()
+
+                        progress_update(d)
+                        n //= d
+
+                except AssertionError:
+                    pass
 
 
         if use_trial:
@@ -739,10 +719,61 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
 
         n_bits = n.bit_length()
 
-        if use_rho and not use_msieve:
+        # -- Heuristic algorithm decisions --
+        # Unless the user specifically wants us to use Rho, we should only use ECM to remove small factors
+        # once we reach ECM supremacy
+        USE_CADO = use_cado_nfs and (not use_msieve or n.bit_length() >= _CADO_SUPREMACY)
+        USE_EXT = USE_CADO or use_msieve
+        USE_RHO = use_rho and not USE_EXT
+        USE_RHO_QUICK = USE_RHO and (n_bits > _RHO_MAX_BITS)
+        USE_ECM = (use_ecm and not USE_EXT) and not (USE_RHO and n_bits < _ECM_SUPREMACY)
+        USE_RHO = USE_RHO and not USE_ECM
+
+        if USE_ECM:
+            if visual:
+                log.info("Starting ECM quick factor")
+            
+            bounds_tested = set()
+
+            # Try to pull out smaller factors first
+            for target_ratio in (5, 4, 3):
+                target_size = n.bit_length() // target_ratio
+                bounds_idx  = binary_search_list(ECM_BOUNDS, target_size, fuzzy=True)
+                m = n
+
+                if bounds_idx in bounds_tested:
+                    continue
+
+                n, internal_reraise = quick_factor(lambda n: ecm(n, max_curves=_ECM_QUICK_ITERATIONS, target_size=target_size, visual=visual), n)
+                if internal_reraise:
+                    raise KeyboardInterrupt
+                
+                # We found nothing, mark it off
+                if m == n:
+                    bounds_tested.add(bounds_idx)
+
+
+            if n_bits <= _ECM_MAX_BITS and not use_siqs:
+                if visual:
+                    log.info("Attempting ECM full factor")
+                
+                # Lenstra's ECM
+                while not is_factored(n):
+                    try:
+                        n_fac = ecm(n, max_curves=ecm_attempts, visual=visual)
+
+                        # ECM will give a factor, but not necessarily a prime
+                        n = process_possible_composite(n, n_fac)
+                        n = check_perfect_powers(n)
+
+                    except ProbabilisticFailureException:
+                        break
+
+
+        if USE_RHO:
             # Pollard's rho
             # If `n` is too big, attempt to remove small factors
-            if n_bits > rho_max_bits:
+            if USE_RHO_QUICK:
                 if visual:
                     log.info("Starting Rho quick factor")
 
@@ -772,11 +803,12 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
             # Generally, P-1 guarantees a factor if the greatest factor `q` of `p-1` is less than B1.
             # This is because P-1 assumes the worst case scenario: that `p-1` is of the form `2*q^k+1`.
             # Instead, we assume the largest exponent is log(n, p) // 4
-            bit_mod   = 45*(use_rho and not use_msieve)
+            bit_mod   = max(45*(USE_RHO), (_ECM_MAX_BITS // 2)*(USE_ECM))
             exp_func  = lambda n, p: (n.bit_length()-bit_mod) // p.bit_length() // 4
             max_bound = min(100000, _samson_math.kth_root(n, 4))
 
-            log.info("Attempting smooth p +/- 1")
+            if visual:
+                log.info("Attempting smooth p +/- 1")
 
             n, internal_reraise = quick_factor(lambda n: williams_pp1(n, max_bound=max_bound, exp_func=exp_func), n)
             if internal_reraise:
@@ -787,7 +819,7 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
                 raise KeyboardInterrupt
 
 
-        if use_cado_nfs and (not use_msieve or n.bit_length() >= 256):
+        if USE_CADO:
             if visual:
                 log.info("Factoring with CADO-NFS")
 
@@ -811,24 +843,6 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, rh
                 # msieve will always fully factor
                 factors += n_fac
                 n //= n_fac.recombine()
-
-
-
-        if use_ecm:
-            if visual:
-                log.info("Attempting ECM")
-
-            # Lenstra's ECM
-            while not is_factored(n):
-                try:
-                    n_fac = ecm(n, attempts=ecm_attempts)
-
-                    # ECM will give a factor, but not necessarily a prime
-                    n = process_possible_composite(n, n_fac)
-                    n = check_perfect_powers(n)
-
-                except ProbabilisticFailureException:
-                    break
 
 
         if use_siqs:

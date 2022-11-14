@@ -102,7 +102,7 @@ class PolynomialRing(Ring):
                 except CoercionException:
                     pass
 
-        elif type_o is Symbol and other.var.ring == self:
+        elif type_o is Symbol and other.var and other.var.ring == self:
             return other.var
 
         # Handle grounds

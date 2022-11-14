@@ -114,9 +114,10 @@ class GeneticAlgorithm(BaseObject):
 
             # 2) Select
             parent_pool = sorted(self.population, key=lambda chromo: chromo.fitness, reverse=self.maximize)[:self.parent_pool_size]
+            print("Current best", parent_pool[0])
 
             # Test for minimum convergence heuristic
-            if abs(parent_pool[0].fitness - current_best) // (current_best * self.convergence_granularity) < granularized_minimum_convergence:
+            if not current_best or (abs(parent_pool[0].fitness - current_best) // (current_best * self.convergence_granularity) < granularized_minimum_convergence):
                 if min_conv_counter < self.min_conv_tolerance:
                     min_conv_counter += 1
                 else:

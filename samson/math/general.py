@@ -24,6 +24,7 @@ _poly          = lazy_import('_poly', 'samson.math.polynomial')
 _mat           = lazy_import('_mat', 'samson.math.matrix')
 _dense         = lazy_import('_dense', 'samson.math.dense_vector')
 _factor_gen    = lazy_import('_factor_gen', 'samson.math.factorization.general')
+_factors       = lazy_import('_factors', 'samson.math.factorization.factors')
 _ell_curve     = lazy_import('_ell_curve', 'samson.math.algebra.curves.weierstrass_curve')
 _symbols       = lazy_import('_symbols', 'samson.math.symbols')
 
@@ -1608,8 +1609,37 @@ def hasse_frobenius_trace_interval(p: int) -> Tuple[int, int]:
     return (-l , l + 1)
 
 
+def sieve_of_eratosthenes(n: int) -> list:
+    """
+    Finds all primes up to `n`.
+ 
+    Parameters:
+        n (int): Limit.
 
-def sieve_of_eratosthenes(n: int, chunk_size: int=1024, prime_base: set=None) -> list:
+    Returns:
+        list: List of prime numbers.
+
+    Examples:
+        >>> from samson.math.general import sieve_of_eratosthenes
+        >>> list(sieve_of_eratosthenes(100))
+        [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+
+    References:
+        https://stackoverflow.com/questions/2068372/fastest-way-to-list-all-primes-below-n/3035188#3035188
+    """
+    n, correction = n-n%6+6, 2-(n%6>1)
+    sieve = [True] * (n//3)
+    for i in range(1,int(n**0.5)//3+1):
+      if sieve[i]:
+        k=3*i+1|1
+        sieve[      k*k//3      ::2*k] = [False] * ((n//6-k*k//6-1)//k+1)
+        sieve[k*(k-2*(i&1)+4)//3::2*k] = [False] * ((n//6-k*(k-2*(i&1)+4)//6-1)//k+1)
+    return [2,3] + [3*i+1|1 for i in range(1,n//3-correction) if sieve[i]]
+
+
+SIEVE_BASE = set(sieve_of_eratosthenes(2**20))
+
+def sieve_of_eratosthenes_lazy(n: int, chunk_size: int=1024, prime_base: set=None) -> list:
     """
     Finds all primes up to `n`.
  
@@ -1632,7 +1662,7 @@ def sieve_of_eratosthenes(n: int, chunk_size: int=1024, prime_base: set=None) ->
 
     # Allow preloading, but remove 2 since it's intrinsically removed
     if not prime_base:
-        prime_base = PRIMES_UNDER_1000.difference({2})
+        prime_base = SIEVE_BASE.difference({2})
 
     # Generate what's in prime_base first
     for p in {2}.union(prime_base):
@@ -1939,6 +1969,7 @@ class ProofMethod(Enum):
     MILLER_RABIN   = 3
     LUCAS_SEQUENCE = 4
     PRATT          = 5
+    POCKLINGTON    = 6
 
 
 class PrimalityCertficate(BaseObject):
@@ -2234,7 +2265,7 @@ def is_strong_lucas_pseudoprime(n: int) -> bool:
 
 
 PRIMES_UNDER_1000 = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997}
-
+EXHAUSTIVE_PRIMALITY_PROOF_LIMIT = 35
 
 def exhaustive_primality_proof(N: int) -> bool:
     """
@@ -2258,6 +2289,43 @@ def exhaustive_primality_proof(N: int) -> bool:
             return certificate
 
     return certificate
+
+
+def generate_pocklington_prime(n: int):
+    if n < EXHAUSTIVE_PRIMALITY_PROOF_LIMIT:
+        p = find_prime(n)
+        return p, is_prime(p, True)
+
+    ZZ   = _integer_ring.ZZ
+    base = 2*3*5*7
+    p1_s = n // 2
+    p2_s = (n-1) - p1_s - base.bit_length()
+
+    if n >= 64:
+        p1, p1p = generate_pocklington_prime(p1_s)
+
+    while True:
+        if n < 64:
+            p1, p1p = generate_pocklington_prime(p1_s)
+        p2 = find_prime(p2_s)
+
+        r = p1*base
+        h = p2
+
+        # Pad with 2's to get desired bit length
+        add_twos = n - (r*h).bit_length()
+        r *= 2**add_twos
+        
+        p = r*h+1
+
+        if is_prime(p):
+            R = (ZZ/ZZ(p)).mul_group()
+            R._order_factor_cache = _factors.Factors({2:1+add_twos, 3:1, 5:1, 7:1, p1: 1, p2: 1})
+
+            g = R.find_gen()
+
+            if g*(r*h) == R.one and r >= h:
+                return p, PrimalityCertficate(n=p, is_prime=True, method=ProofMethod.POCKLINGTON, proof={"g": g, "factors": R._order_factor_cache, "p1p": p1p})
 
 
 def ecpp(N: int, recursive: bool=True) -> bool:
@@ -2450,7 +2518,7 @@ def is_prime(n: int, prove: bool=False) -> bool:
         return lucas_lehmer_test(n)
 
     if prove:
-        if n.bit_length() < 35:
+        if n.bit_length() < EXHAUSTIVE_PRIMALITY_PROOF_LIMIT:
             return exhaustive_primality_proof(n)
 
         else:

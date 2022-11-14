@@ -407,7 +407,7 @@ class RuntimeConfiguration(object):
                             if local_term_filt(results):
                                 pool.terminate()
                                 break
-                        
+
                         return results
                     else:
                         return list(final_runner)

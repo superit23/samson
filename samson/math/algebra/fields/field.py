@@ -28,8 +28,8 @@ class Field(Ring):
     
 
     def function_field(self, symbol):
-        from samson.math.algebra.fields.function_field import FunctionField
-        return FunctionField(symbol, self)
+        from samson.math.algebra.fields.function_field import RationalFunctionField
+        return RationalFunctionField(symbol, self)
 
 
 

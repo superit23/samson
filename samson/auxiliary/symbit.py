@@ -168,7 +168,7 @@ class SymBit(BaseObject):
 
     def __hash__(self):
         return hash(self.value)
-    
+
 
     def _coerce(self, other):
         if type(other) is int:
@@ -427,14 +427,14 @@ class FixedBitVector(BaseObject):
             if type(v) is SymBit:
                 val_dict[k] = v.value
 
-        binary = [a(**val_dict) for a in self.symbols]
+        binary = [SymBit(a(**val_dict).value) for a in self.symbols]
 
         bv = self._create_copy()
         bv.symbols = binary
         return bv
     
 
-    def solve(self, bits: List[SolveFor]):
+    def solve(self, bits: List[SolveFor], ignore: list=None):
         if type(bits) is int:
             bits = [int(b) for b in bin(bits)[2:].zfill(self.SIZE)]
 
@@ -599,8 +599,6 @@ class ALU(BaseObject):
             ALUOP.GT: ADVOP.GT,
             ALUOP.LT: ADVOP.LT,
             ALUOP.EQ: ADVOP.EQ,
-            # 14: lambda a,b: ADVOP.LROT(a, b.int()),
-            # 15: lambda a,b: ADVOP.RROT(a, b.int())
         }
 
 

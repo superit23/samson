@@ -1,4 +1,4 @@
-from samson.math.general import sieve_of_eratosthenes, legendre, ResidueSymbol, kth_root, tonelli, gcd, is_prime, batch_gcd, random_int_between, mod_inv
+from samson.math.general import sieve_of_eratosthenes_lazy, legendre, ResidueSymbol, kth_root, tonelli, gcd, is_prime, batch_gcd, random_int_between, mod_inv
 from samson.math.polynomial import Polynomial
 from samson.math.matrix import Matrix
 from samson.math.symbols import Symbol
@@ -95,7 +95,7 @@ class BMatrix(object):
 
 def siqs_choose_nf_m(d):
     """
-    Choose parameters nf (sieve of factor base) and m (for sieving in [-m,m].
+    Choose parameters nf (sieve of factor base) and m (for sieving in [-m,m]).
     """
     # Using similar parameters as msieve-1.52
     if d <= 34:
@@ -135,7 +135,7 @@ def siqs_choose_nf_m(d):
 def find_base(n, num_factors):
     base = [PrimeBase(2, n, t=1)]
 
-    for p in sieve_of_eratosthenes(2**64):
+    for p in sieve_of_eratosthenes_lazy(2**64):
         if legendre(n, p) == ResidueSymbol.EXISTS:
             base.append(PrimeBase(p, n))
 
@@ -382,10 +382,14 @@ def solve(solution_vec, smooth_nums, n):
 
 
 
-def find_factors(n: int, solutions: list, smooth_nums: list, M: BMatrix, marks: list):
+def find_factors(n: int, solutions: list, smooth_nums: list, M: BMatrix, marks: list, visual: bool=False):
     primes     = Factors()
     left       = n
     composites = Factors()
+
+    iterator = solutions
+    if visual:
+        iterator = tqdm(solutions, desc="siqs: Solving rows", unit="sol")
 
     for solution in solutions:
         if left == 1:
@@ -506,7 +510,7 @@ def siqs(n: int, bound_ratio: float=1.0, relations_ratio: float=1.05, visual: bo
         bexp_mat = BMatrix(exp_ints, num_cols=len(prime_base)+1).T
 
         solutions, marks, M = ge_f2_nullspace(M=bexp_mat, visual=visual)
-        primes, composites  = find_factors(n=n, solutions=solutions, smooth_nums=smooth_relations, M=M, marks=marks)
+        primes, composites  = find_factors(n=n, solutions=solutions, smooth_nums=smooth_relations, M=M, marks=marks, visual=visual)
 
 
         if primes or composites:
