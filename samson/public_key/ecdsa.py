@@ -314,7 +314,7 @@ class ECDSA(DSA):
         sol  = m.LLL(0.99)
 
         # We only have the difference between `k_i` and `k_n`, so we have
-        # to do some addition calculations
+        # to do some additional calculations
         for k_row in [v for v in sol if v[-1] == q]:
             for k_diff, m, (r, s), partial in zip(k_row[:-1], msgs[:-1], sigs[:-1], partial_knowns[:-1]):
                 m      = self.H(m)

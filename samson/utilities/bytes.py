@@ -290,7 +290,7 @@ class Bytes(bytearray):
         """
         Changes the byteorder WITHOUT reordering the bytes. This is useful
         for interpreting an existing byte string differently.
-        
+    
         Parameters:
             byteorder (str): Byteorder to switch to. If not specified, defaults to the opposite of `self`.
 
@@ -353,7 +353,7 @@ class Bytes(bytearray):
 
     def to_hex(self) -> 'Bytes':
         """
-        Converts to an hex representation.
+        Converts to a hex representation.
 
         Returns:
             Bytes: Hex representation.
@@ -363,8 +363,8 @@ class Bytes(bytearray):
 
     def hex(self) -> 'Bytes':
         """
-        Converts to an hex representation.
-        
+        Converts to a hex representation.
+    
         Returns:
             Bytes: Hex representation.
         """
@@ -373,7 +373,7 @@ class Bytes(bytearray):
 
     def unhex(self) -> 'Bytes':
         """
-        Converts from an hex representation.
+        Converts from a hex representation.
 
         Returns:
             Bytes: Raw bytes representation.

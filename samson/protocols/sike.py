@@ -3,7 +3,7 @@ from samson.utilities.bytes import Bytes
 from samson.ace.decorators import register_primitive
 from samson.core.primitives import KeyExchangeAlg, Primitive
 from samson.core.metadata import SecurityProofType, SizeType, SizeSpec, FrequencyType
-from samson.protocols.sidh import SIDH, extract_prime_powers
+from samson.protocols.sidh import SIDH
 from samson.math.algebra.curves.montgomery_curve import MontgomeryCurve
 
 
@@ -73,7 +73,7 @@ class SIKE(KeyExchangeAlg):
         return (sidh.iU, sidh.iV, sidh.phi(self.R)), message ^ F(j_inv, len(message)*8)
 
 
-    def decrypt(self, public_key, ciphertext: bytes):
+    def decrypt(self, ciphertext: bytes, public_key):
         return self.encrypt(self.sidh.m, ciphertext, public_key)[1]
 
 

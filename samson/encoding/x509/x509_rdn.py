@@ -12,7 +12,7 @@ class RDN(BaseObject):
 
     def __init__(self, value: bytes) -> None:
         self.value = value
-    
+
 
     def _build(self, value_obj, should_encode: bool=True):
         if should_encode:
@@ -165,11 +165,11 @@ class DomainComponent(SimpleRDN, RDN):
 class RDNSequence(BaseObject):
     def __init__(self, rdns: List[RDN]) -> None:
         self.rdns = rdns
-    
+
 
     def __reprdir__(self):
         return ['__raw__']
-    
+
 
     def __str__(self):
         return self.__raw__
@@ -183,7 +183,7 @@ class RDNSequence(BaseObject):
     @staticmethod
     def parse(rdn_seq: rfc2459.RDNSequence) -> 'RDNSequence':
         return RDNSequence([RDN.parse(rdn) for rdn in rdn_seq])
-    
+
 
     def build(self):
         rdn_seq = rfc2459.RDNSequence()

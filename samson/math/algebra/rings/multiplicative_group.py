@@ -189,10 +189,11 @@ class MultiplicativeGroup(Ring):
             MultiplicativeGroupElement: Coerced element.
         """
         if type(other) is not MultiplicativeGroupElement or other.ring.ring != self.ring:
+            other = self.ring(other)
             if not other:
                 raise ValueError("Zero is not part of the multiplicative group")
 
-            return MultiplicativeGroupElement(self.ring(other), self)
+            return MultiplicativeGroupElement(other, self)
         else:
             return other
 
@@ -203,7 +204,7 @@ class MultiplicativeGroup(Ring):
 
         Parameters:
             x (int): Element ordinality.
-        
+
         Returns:
            MultiplicativeGroupElement: The `x`-th element.
         """

@@ -5,6 +5,7 @@ from samson.math.polynomial import Polynomial
 from samson.math.symbols import Symbol, oo
 from samson.math.general import random_int, is_prime
 from samson.math.factorization.general import factor
+import math
 
 
 class PolynomialRing(Ring):
@@ -159,8 +160,8 @@ class PolynomialRing(Ring):
         Returns:
             Polynomial: Irreducible polynomial
         """
-        logn = n.bit_length()
-        sparsity = sparsity or logn-2
+        logn = math.ceil(math.log(n, 2))
+        sparsity = max(sparsity or logn-2, 1)
         x = self.symbol
         p = x**n
 
@@ -168,9 +169,9 @@ class PolynomialRing(Ring):
         R       = self.ring
         one     = R.one
 
-        max_attempts = n*logn
+        max_attempts = n*(logn+1)
 
-        while True:
+        while sparsity < n:
             for _ in range(max_attempts):
                 degrees.sort(key=lambda i: random_int(n**2))
                 q = p

@@ -339,7 +339,7 @@ class Polynomial(RingElement):
 
         Parameters:
             factor_kwargs (kwargs): Keyword arguments to pass into factorization.
-            use_hensel      (bool): Uses Hensel lifting instead of congruences. Much fast for very large moduli but isn't guaranteed to find all roots.
+            use_hensel      (bool): Uses Hensel lifting instead of congruences. Much faster for very large moduli but isn't guaranteed to find all roots.
 
         Returns:
             list: List of roots.
@@ -742,6 +742,10 @@ class Polynomial(RingElement):
         return factors
 
     sff = square_free_decomposition
+
+
+    def is_square(self):
+        return not self.sff().largest_root() % 2
 
 
     def distinct_degree_factorization(self) -> list:
@@ -1840,3 +1844,13 @@ class Polynomial(RingElement):
         from samson.math.optimization.poly_division_cache import PolyDivisionCache
         self.__div_cache = PolyDivisionCache(self, prec)
         self.__relemdivmod__ = self.__div_cache.__relemdivmod__
+
+
+    def decompose_given_h(self, h):
+        from samson.math.matrix import Matrix
+        s = h.degree()
+        r = self.degree() // s
+        A = Matrix([[(h**j)[i*s] for j in range(r+1)] for i in range(r+1)])
+        a = Matrix([[f[i*s] for i in range(r+1)]])
+        g = A.LUsolve(a.T)
+        return self.ring(list(g.T[0]))

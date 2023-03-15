@@ -218,8 +218,8 @@ def coupon_collector_analysis(n: int) -> (float, float):
     References:
         https://brilliant.org/wiki/coupon-collector-problem/
     """
-    average_number     = n * (log(n) + EULER_MASCHERONI_CONSTANT) + 0.5
-    standard_deviation = sqrt((pi**2 * n**2) / 6 - n * (log(n) + EULER_MASCHERONI_CONSTANT) - 0.5)
+    average_number     = n * (log(n, e) + EULER_MASCHERONI_CONSTANT) + 0.5
+    standard_deviation = sqrt((pi**2 * n**2) / 6 - n * (log(n, e) + EULER_MASCHERONI_CONSTANT) - 0.5)
     return (average_number, standard_deviation)
 
 

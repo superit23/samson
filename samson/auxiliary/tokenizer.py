@@ -43,7 +43,7 @@ class Tokenizer(object):
 
         Parameters:
             samples (list): List of string samples to break into tokens.
-        
+
         Returns:
             object: The finalized return of the `token_handler`.
         """

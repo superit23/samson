@@ -11,6 +11,7 @@ import math
 from samson.auxiliary.lazy_loader import LazyLoader
 _samson_math  = LazyLoader('_samson_math', globals(), 'samson.math.general')
 _siqs         = LazyLoader('_siqs', globals(), 'samson.math.factorization.siqs')
+_integer_ring = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
 
 import logging
 log = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ def pollards_p_1(n: int, B1: int=None, max_bound: int=None, a: int=2, E: int=1, 
         https://en.wikipedia.org/wiki/Pollard%27s_p_%E2%88%92_1_algorithm
     """
     kth_root = _samson_math.kth_root
-    sieve_of_eratosthenes = _samson_math.sieve_of_eratosthenes
+    sieve_of_eratosthenes_lazy = _samson_math.sieve_of_eratosthenes_lazy
     gcd = _samson_math.gcd
 
 
@@ -54,7 +55,7 @@ def pollards_p_1(n: int, B1: int=None, max_bound: int=None, a: int=2, E: int=1, 
         exclude_list = []
 
 
-    for p in sieve_of_eratosthenes(max_bound):
+    for p in sieve_of_eratosthenes_lazy(max_bound):
         if p > B1:
             # By saving a's congruence and resetting E,
             # we can prevent recomputing the entire exponent
@@ -242,7 +243,7 @@ def pk_1_smallest_divisor(prime_power: int) -> int:
     # skip trial division for `2^d-1` since every factor of `2^p-1` for prime `p` has unique factors.
     # The biggest compromise we're making is immediately stopping on the first factor found. While
     # finding the smallest factor first is more probable, neither Pollard's rho nor ECM guarantee it.
-    find_one = lambda n, facs: len(facs)
+    find_one = lambda n, facs: len(facs) and is_prime(list(facs)[0])
     d = list(factor(k, use_trial=False, user_stop_func=find_one))[0]
 
     # If `d` is a Sophie Germain prime and congruent to 3 mod 4, `2d+1` is a factor.
@@ -281,6 +282,44 @@ def _factor_22km1(n: int):
         facs.factors.update({fac: 1 for fac in FAC_TABLE_22K1[i]})
     
     return facs
+
+
+def _pk1_factor(p, k):
+    """
+    Factors numbers of the form `p^k-1`.
+    """
+    divisors = sorted(factor(k).divisors(recombine=False))
+    divisor_cache = {d:p**d.recombine()-1 for d in divisors}
+    facs = Factors()
+    QQ = _integer_ring._get_QQ()
+
+    for div in divisors:
+        n = QQ(1)
+        for d in sorted(div.divisors(False)):
+            n *= QQ(divisor_cache[d])**(div // d).mobius()
+
+            print(div.recombine(), repr(d), n)
+            print("MOB", divisor_cache[d], (div // d).mobius())
+
+            if d == div:
+                print("DONE", div.recombine(), int(n))
+                print()
+                break
+
+        facs += factor(int(n))
+
+    return facs
+
+
+
+    for q, e in factor(k).items():
+        facs = factor(p-1)
+        for i in range(2, k+1):
+            facs += factor((p**i-1) // (p**(i-1)-1))
+        
+        return facs
+
+
 
 
 def _modular_lucas(v: int, a: int, n: int) -> int:
@@ -717,13 +756,19 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
             n = check_perfect_powers(n)
 
 
+        # Check if perfect power minus 1
+        ipp, p, k = is_perfect_power(n+1)
+        if ipp and p > 1 and k > 1:
+            return _pk1_factor(p, k)
+
+
         n_bits = n.bit_length()
 
         # -- Heuristic algorithm decisions --
         # Unless the user specifically wants us to use Rho, we should only use ECM to remove small factors
         # once we reach ECM supremacy
         USE_CADO = use_cado_nfs and (not use_msieve or n.bit_length() >= _CADO_SUPREMACY)
-        USE_EXT = USE_CADO or use_msieve
+        USE_EXT = (USE_CADO or use_msieve) and n.bit_length() > _ECM_SUPREMACY
         USE_RHO = use_rho and not USE_EXT
         USE_RHO_QUICK = USE_RHO and (n_bits > _RHO_MAX_BITS)
         USE_ECM = (use_ecm and not USE_EXT) and not (USE_RHO and n_bits < _ECM_SUPREMACY)
@@ -753,10 +798,10 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
                     bounds_tested.add(bounds_idx)
 
 
-            if n_bits <= _ECM_MAX_BITS and not use_siqs:
+            if not use_siqs:
                 if visual:
                     log.info("Attempting ECM full factor")
-                
+
                 # Lenstra's ECM
                 while not is_factored(n):
                     try:

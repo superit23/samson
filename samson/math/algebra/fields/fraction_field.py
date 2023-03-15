@@ -315,3 +315,10 @@ class FractionField(Field):
 
 
         return FractionFieldElement(*result, self)
+
+
+    def extension(self, degree: int) -> ('Map', 'Field'):
+        if self.ring == ZZ:
+            return ZZ.extension(degree).fraction_field()
+        else:
+            return super().extension(degree)

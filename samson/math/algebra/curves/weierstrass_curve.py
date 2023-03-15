@@ -3,7 +3,7 @@ from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.polynomial import Polynomial
 from samson.math.factorization.general import factor, is_perfect_power
 from samson.math.algebra.curves.util import EllipticCurveCardAlg
-from samson.math.general import mod_inv, schoofs_algorithm, gcd, hasse_frobenius_trace_interval, sieve_of_eratosthenes, product, crt, is_prime, kth_root, batch_inv, lcm, frobenius_trace_mod_l, legendre, cornacchias_algorithm, hilbert_class_polynomial, random_int, random_int_between, find_prime, primes, cyclomotic_polynomial
+from samson.math.general import mod_inv, schoofs_algorithm, gcd, hasse_frobenius_trace_interval, sieve_of_eratosthenes, product, crt, is_prime, kth_root, batch_inv, lcm, frobenius_trace_mod_l, legendre, cornacchias_algorithm, hilbert_class_polynomial, random_int, random_int_between, find_prime, primes, cyclomotic_polynomial, find_representative
 from samson.math.discrete_logarithm import pohlig_hellman
 from samson.math.map import Map
 from samson.utilities.exceptions import NoSolutionException, SearchspaceExhaustedException, CoercionException
@@ -149,7 +149,7 @@ class WeierstrassPoint(RingElement):
 
 
     def __neg__(self) -> 'WeierstrassPoint':
-        return WeierstrassPoint(self._x, -self._y, self.curve, self._z)
+        return self.__class__(self._x, -self._y, self.curve, self._z)
 
 
     def __double(self):
@@ -167,7 +167,7 @@ class WeierstrassPoint(RingElement):
         Y_ = W*(B4 - H) - (Y*Y)*S2
         Z_ = S*S2
 
-        return WeierstrassPoint(x=X_, y=Y_, z=Z_, curve=self.curve)
+        return self.__class__(x=X_, y=Y_, z=Z_, curve=self.curve)
 
 
     def add_no_cache(self, P2: 'WeierstrassPoint') -> 'WeierstrassPoint':
@@ -204,7 +204,7 @@ class WeierstrassPoint(RingElement):
         Y3  = U*(VS2 - A) - VT*U2
         Z3  = VT*W
 
-        return WeierstrassPoint(x=X3, y=Y3, z=Z3, curve=self.curve)
+        return self.__class__(x=X3, y=Y3, z=Z3, curve=self.curve)
 
 
     def mul_no_cache(self, other: int) -> 'WeierstrassPoint':
@@ -438,16 +438,15 @@ class WeierstrassPoint(RingElement):
             True
 
         """
-        from samson.math.algebra.fields.finite_field import FiniteField as GF
         E = self.curve
         F = E.ring
 
-        k  = E.embedding_degree()
-        K  = GF(F.characteristic(), k)
-        E_ = WeierstrassCurve(K(E.a), K(E.b))
-        Km = K.mul_group()
+        k      = E.embedding_degree()
+        hom, K = F.extension(k)
+        E_     = WeierstrassCurve(hom(E.a), hom(E.b))
+        Km     = K.mul_group()
 
-        P = E_(self)
+        P = E_(hom(self.x), hom(self.y))
         o = P.order()
 
         while True:
@@ -456,7 +455,7 @@ class WeierstrassPoint(RingElement):
 
             if Km(W2).order() == o:
                 def mul_trans(Q):
-                    return Km(E_(Q).weil_pairing(R, o))
+                    return Km(E_(hom(Q.x), hom(Q.y)).weil_pairing(R, o))
 
                 phi   = Map(E, Km, mul_trans)
                 phi.R = R
@@ -537,7 +536,10 @@ class WeierstrassPoint(RingElement):
             else:
                 return d
 
-        table, y_table, m = self._build_bsgs_table(g, end, start, r, n)
+        if (end-start) < n:
+            return find_representative((r,n), (start, end))
+        else:
+            table, y_table, m = self._build_bsgs_table(g, end, start, r, n)
 
         mb     = m.bit_length()
         o      = g*start
@@ -600,6 +602,7 @@ class WeierstrassCurve(Ring):
     """
     Elliptic curve of form y**2 = x**3 + a*x + b
     """
+    _POINT_CLS = WeierstrassPoint
 
     def __init__(self, a: RingElement, b: RingElement, ring: Ring=None, base_tuple: tuple=None, cardinality: int=None, check_singularity: bool=True, cm_discriminant: int=None, embedding_degree: int=None):
         """
@@ -637,7 +640,7 @@ class WeierstrassCurve(Ring):
                 raise ValueError("Elliptic curve can't be singular")
 
         if base_tuple:
-            base_tuple = WeierstrassPoint(*base_tuple, self)
+            base_tuple = self._POINT_CLS(*base_tuple, self)
 
         self.G_cache     = base_tuple
         self.dpoly_cache = {}
@@ -670,7 +673,7 @@ class WeierstrassCurve(Ring):
 
 
     def coerce(self, x: 'RingElement', y: 'RingElement'=None, verify: bool=True) -> WeierstrassPoint:
-        if issubclass(type(x), WeierstrassPoint):
+        if issubclass(type(x), self._POINT_CLS):
             if x.curve == self:
                 return x
             else:
@@ -681,7 +684,7 @@ class WeierstrassCurve(Ring):
             if verify and y**2 != x**3 + self.a*x + self.b:
                 raise CoercionException(f'Point ({x}, {y}) not on curve')
 
-            return WeierstrassPoint(x, y, self)
+            return self._POINT_CLS(x, y, self)
         else:
             return self.recover_point_from_x(x)
 
@@ -866,7 +869,7 @@ class WeierstrassCurve(Ring):
             _ipp, pk, k = is_perfect_power(q)
 
             # Finite field extension
-            if pk != q and not self.a.degree() and not self.b.degree():
+            if pk != q:# and not self.a.degree() and not self.b.degree():
                 E = EllipticCurve(self.a[0], self.b[0])
                 t = E.trace()
                 s = [2, t]
@@ -888,7 +891,7 @@ class WeierstrassCurve(Ring):
 
 
             if algorithm == EllipticCurveCardAlg.AUTO:
-                curve_size = p.bit_length()
+                curve_size = q.bit_length()
 
                 if curve_size < 11:
                     algorithm = EllipticCurveCardAlg.BRUTE_FORCE
@@ -916,6 +919,7 @@ class WeierstrassCurve(Ring):
 
                 else:
                     points = []
+                    g = self.ring.find_gen()
 
                     for i in range(g.order()):
                         try:
@@ -947,7 +951,7 @@ class WeierstrassCurve(Ring):
                     # Here we attempt to balance the exponential time BSGS and poly time Schoof
                     trace_mods = [t_mod for t_mod in [3, 5, 7, 11, 13][:round(math.log(p.bit_length(), 3.5))] if t_mod % n or n < 2]
                     elkies_con = []
-            
+
                     for l in primes(3, p.bit_length() // 2):
                         try:
                             elkies_con.append(elkies_trace_mod_l(self, l))
@@ -1035,10 +1039,10 @@ class WeierstrassCurve(Ring):
         p = R.characteristic()
         j = self.j_invariant()
 
-        if p % 3 == 2 and j == R(0):
+        if p > 2 and p % 3 == 2 and j == R(0):
             return True
 
-        elif p % 4 == 3 and j == R(1728):
+        elif p > 2 and p % 4 == 3 and j == R(1728):
             return True
 
         elif self.cardinality_cache or p < 233:
@@ -1938,7 +1942,9 @@ class WeierstrassCurve(Ring):
             if not delta.is_square():
                 continue
 
-            s = ~delta.sqrt()
+            d     = delta.sqrt()
+            s, i3 = batch_inv([d, self.ring(3)])
+
 
             if self.G_cache:
                 x, y = s*(self.G.x-alpha), self.G.y*s
@@ -1948,11 +1954,10 @@ class WeierstrassCurve(Ring):
             A     = 3*alpha*s
             curve = MontgomeryCurve(A=A, B=s, U=x, V=y, order=self.order() // 2)
 
-            inv_B  = ~s
-            inv_B3 = ~(s*3)
+            inv_B3 = d*i3
 
             def inv_map_func(point):
-                return self((point.x*inv_B) + (A*inv_B3), point.y*inv_B)
+                return self((point.x*d) + (A*inv_B3), point.y*d)
 
             point_map = Map(self, curve, lambda point: curve(s*(point.x-alpha), s*point.y), inv_map=inv_map_func)
             return curve, point_map
@@ -1979,13 +1984,13 @@ class WeierstrassCurve(Ring):
 
         Parameters:
             x (int): x-coordinate.
-        
+
         Returns:
             WeierstrassPoint: Point at x-coordinate.
         """
         x = self.ring(x)
         y = (x**3 + self.a*x + self.b).sqrt()
-        return WeierstrassPoint(x, y, self)
+        return self._POINT_CLS(x, y, self)
 
 
     def random(self, size: 'RingElement'=None) -> WeierstrassPoint:
@@ -1994,7 +1999,7 @@ class WeierstrassCurve(Ring):
 
         Parameters:
             size (RingElement): The ring-specific 'size' of the element.
-    
+
         Returns:
             WeierstrassPoint: Random element of the algebra.
         """
@@ -2214,7 +2219,7 @@ class WeierstrassCurve(Ring):
             Qpy = (x ** 3 + QpA * x + QpB).sqrt()
             QpP = Ep(x, (-Qpy, Qpy)[Qpy.val[0] == y])
             return QpP
-        
+
 
         def add_trans(P):
             QpxP = Qp2(P.x)

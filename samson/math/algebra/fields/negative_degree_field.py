@@ -58,7 +58,7 @@ class NegativeDegreeElement(RingElement):
         if idx_modded < 0:
             self.val.val = self.val.val << -idx_modded
             self.shift  += -idx_modded
-            idx_modded = 0
+            idx_modded   = 0
 
         self.val.val[idx_modded] = value
 
@@ -193,9 +193,6 @@ class NegativeDegreeField(Ring):
                 val = other.valuation()
 
             return self.ELEMENT(other, -val, self)
-
-        raise CoercionException(self, other)
-
 
 
     def __eq__(self, other: 'NegativeDegreeField') -> bool:

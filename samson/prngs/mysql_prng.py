@@ -52,7 +52,7 @@ class MySQLPRNG(BasePRNG):
 
     def crack(self, outputs):
         a1, a2 = outputs[-2:]
-        b0 = a2 - 4*a1 -33
+        b0 = a2 - 4*a1 - 33
         a0 = self.__reconstruct_a0(a1, b0)
 
         prng = self.copy()

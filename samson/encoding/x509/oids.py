@@ -1,4 +1,22 @@
-from enum import Enum
+from enum import Enum, EnumMeta
+from pyasn1.codec.der import decoder
+from pyasn1.type.univ import ObjectIdentifier
+
+
+class OIDEnumMeta(EnumMeta):
+    def __call__(cls, value, *args, **kw):
+        if type(value) is bytes:
+            oid, _ = decoder.decode(value)
+            if type(oid) is not ObjectIdentifier:
+                raise ValueError(f"'{value}' is not a valid {cls}")
+            
+            value = str(oid)
+
+        return super().__call__(value, *args, **kw)
+
+
+class OIDEnum(Enum, metaclass=OIDEnumMeta):
+    pass
 
 
 def merge_enums(name: str, sub_enums: list):
@@ -9,11 +27,12 @@ def merge_enums(name: str, sub_enums: list):
     import itertools
     merged = [[(prefix + kv.name, kv.value) for kv in enum] for prefix, enum in itertools.chain(sub_enums)]
     merged = [item for sublist in merged for item in sublist]
-    return Enum(name, merged)
+    return OIDEnum(name, merged)
 
 
 
-class _OID(Enum):
+
+class _OID(Enum, metaclass=OIDEnumMeta):
 
     def __eq__(self, other):
         return self.value == other.value
@@ -36,7 +55,7 @@ class _OID(Enum):
 
 
 
-class MicrosoftCertificateServicesOID(_OID):
+class MicrosoftCertificateServicesOID(_OID, metaclass=OIDEnumMeta):
     @staticmethod
     def prefix():
         return 'MICROSOFT_'
@@ -68,7 +87,7 @@ class MicrosoftCertificateServicesOID(_OID):
     szOID_CERTSRV_CROSSCA_VERSION = '1.3.6.1.4.1.311.21.22'
 
 
-class NetscapeCertificateOID(_OID):
+class NetscapeCertificateOID(_OID, metaclass=OIDEnumMeta):
     @staticmethod
     def prefix():
         return 'NETSCAPE_'
@@ -91,7 +110,7 @@ class NetscapeCertificateOID(_OID):
     CERT_RENEWAL_TIME = '2.16.840.1.113730.1.15'
 
 
-class StandardExtensionType(_OID):
+class StandardExtensionType(_OID, metaclass=OIDEnumMeta):
     OBSOLETE_AUTHORITY_KEY_IDENTIFIER = '2.5.29.1'
     OBSOLETE_KEY_ATTRIBUTES           = '2.5.29.2'
     OBSOLETE_CERTIFICATE_POLICIES     = '2.5.29.3'
@@ -141,7 +160,7 @@ class StandardExtensionType(_OID):
     ENTRUST_VERSION              = '1.2.840.113533.7.65.0'
 
 
-class X509ExtKeyUsageType(_OID):
+class X509ExtKeyUsageType(_OID, metaclass=OIDEnumMeta):
     TLS_WEB_SERVER_AUTHENTICATION = '1.3.6.1.5.5.7.3.1'
     TLS_WEB_CLIENT_AUTHENTICATION = '1.3.6.1.5.5.7.3.2'
     CODE_SIGNING = '1.3.6.1.5.5.7.3.3'
@@ -172,7 +191,7 @@ class X509ExtKeyUsageType(_OID):
     MICROSOFT_SMARTCARD_LOGON = '1.3.6.1.4.1.311.20.2.2'
 
 
-class X509AccessDescriptorType(_OID):
+class X509AccessDescriptorType(_OID, metaclass=OIDEnumMeta):
     @staticmethod
     def prefix():
         return 'AD_'
@@ -184,7 +203,7 @@ class X509AccessDescriptorType(_OID):
 
 
 
-class X509CertificatePolicyType(_OID):
+class X509CertificatePolicyType(_OID, metaclass=OIDEnumMeta):
     EXTENDED_VALIDATION    = '2.23.140.1.1'
     DOMAIN_VALIDATED       = '2.23.140.1.2.1'
     ORGANIZATION_VALIDATED = '2.23.140.1.2.2'
@@ -199,12 +218,12 @@ class X509CertificatePolicyType(_OID):
     ISRG_DOMAIN_VALIDATED = '1.3.6.1.4.1.44947.1.1.1'
 
 
-class X509CertificatePolicyQualifierType(_OID):
+class X509CertificatePolicyQualifierType(_OID, metaclass=OIDEnumMeta):
     CERTIFICATE_PRACTICE_STATEMENT = '1.3.6.1.5.5.7.2.1'
     USER_NOTICE = '1.3.6.1.5.5.7.2.2'
 
 
-class OtherNameOID(_OID):
+class OtherNameOID(_OID, metaclass=OIDEnumMeta):
     KISA_IDENTIFYDATA = '1.2.410.200004.10.1.1'
     USER_PRINCIPAL_NAME = '1.3.6.1.4.1.311.20.2.3'
     KERBEROS_PRINCIPAL_NAME = '1.3.6.1.5.2.2'
@@ -212,7 +231,7 @@ class OtherNameOID(_OID):
 
 
 # https://www.ietf.org/rfc/rfc5698.txt
-class HashType(_OID):
+class HashType(_OID, metaclass=OIDEnumMeta):
     MD2    = '1.2.840.113549.2.2'
     MD5    = '1.2.840.113549.2.5'
     SHA1   = '1.3.14.3.2.26'
@@ -223,7 +242,7 @@ class HashType(_OID):
 
 
 # https://tools.ietf.org/html/rfc8017#appendix-A.2.4
-class SigningAlgOID(_OID):
+class SigningAlgOID(_OID, metaclass=OIDEnumMeta):
     MD2_WITH_RSA_ENCRYPTION        = '1.2.840.113549.1.1.2'
     MD5_WITH_RSA_ENCRYPTION        = '1.2.840.113549.1.1.4'
     SHA1_WITH_RSA_ENCRYPTION       = '1.2.840.113549.1.1.5'
@@ -243,13 +262,15 @@ class SigningAlgOID(_OID):
     ID_DSA_WITH_SHA256             = '2.16.840.1.101.3.4.3.2'
 
 
-class MiscOID(_OID):
+class MiscOID(_OID, metaclass=OIDEnumMeta):
     RC2_CBC            = '1.2.840.113549.3.2'
     RC4                = '1.2.840.113549.3.4'
     DES_CBC            = '1.3.14.3.2.7'
     DES_EDE3_CBC       = '1.2.840.113549.3.7'
     EXTENSION_REQUEST  = '1.2.840.113549.1.9.14'
     SMIME_CAPABILITIES = '1.2.840.113549.1.9.15'
+    PKCS7_ENCRYPTED_DATA = '1.2.840.113549.1.7.6'
+    AES256_GCM         = '2.16.840.1.101.3.4.1.46'
 
 
 OID = _OID.build_oid_enum()

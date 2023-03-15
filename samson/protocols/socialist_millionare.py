@@ -70,7 +70,7 @@ class SocialistMillionare(BaseObject):
             assert h_a1 != 1
             assert h_a2 != 1
 
-        r = r or Bytes.random(16).int()
+        r    = r or Bytes.random(16).int()
         g, R = pow(h_a1, self.exp1, self.p), pow(h_a2, self.exp2, self.p)
 
         self.P = pow(R, r, self.p)

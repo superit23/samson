@@ -1764,19 +1764,27 @@ def find_representative(quotient_element: 'QuotientElement', valid_range: range)
         14
 
     """
-    remainder = int(quotient_element)
-    modulus   = int(quotient_element.ring.quotient)
+    if type(quotient_element) is tuple:
+        remainder, modulus = quotient_element
+    else:
+        remainder = int(quotient_element)
+        modulus   = int(quotient_element.ring.quotient)
 
-    if len(valid_range) > modulus:
+    if type(valid_range) is range:
+        start, end = valid_range.start, valid_range.stop
+    else:
+        start, end = valid_range
+
+    if (end-start) > modulus:
         raise ValueError("Solution not unique")
 
     q, r = divmod(valid_range[0], modulus)
-    shifted_range = range(r, r + len(valid_range))
+    shifted_start, shifted_end = (r, r + (end-start))
 
-    if remainder in shifted_range:
+    if shifted_start < remainder < shifted_end:
         return q * modulus + remainder
 
-    elif remainder + modulus in shifted_range:
+    elif shifted_start < (remainder + modulus) < shifted_end:
         return (q+1) * modulus + remainder
 
     else:
@@ -2360,7 +2368,7 @@ def ecpp(N: int, recursive: bool=True) -> bool:
                     Eo = E.order()
                 except SearchspaceExhaustedException:
                     from samson.math.algebra.curves.util import EllipticCurveCardAlg
-                    if N.bit_length() > 64:
+                    if N.bit_length() > 48:
                         raise RuntimeError(f'ECPP point counting fell back to bruteforce, but {N} ({N.bit_length()}) is too large')
 
                     Eo = E.cardinality(EllipticCurveCardAlg.BRUTE_FORCE)

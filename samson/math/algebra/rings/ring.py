@@ -12,6 +12,7 @@ from samson.core.base_object import BaseObject
 _poly = LazyLoader('_poly', globals(), 'samson.math.polynomial')
 _quot = LazyLoader('_quot', globals(), 'samson.math.algebra.rings.quotient_ring')
 _frac = LazyLoader('_frac', globals(), 'samson.math.algebra.fields.fraction_field')
+_mulg = LazyLoader('_mulg', globals(), 'samson.math.algebra.rings.multiplicative_group')
 _symb = LazyLoader('_symb', globals(), 'samson.math.symbols')
 
 def set_precendence_override(should_override):
@@ -114,6 +115,23 @@ class Ring(BaseObject):
         return FractionField(self)
 
 
+    def extension(self, degree: int) -> ('Map', 'Field'):
+        if type(degree) is int:
+            if degree == 1:
+                return self
+
+            x = _symb.Symbol('x')
+            P = self[x]
+
+            q = P.find_irreducible(degree)
+            return P/q
+        elif type(degree) is _poly.Polynomial:
+            return degree.ring/degree
+        
+        else:
+            raise ValueError(f"Type of {degree} not valid for creating an extension")
+
+
     def base_coerce(self, other: object) -> 'RingElement':
         """
         Attempts to coerce other into an element of the algebra.
@@ -135,6 +153,9 @@ class Ring(BaseObject):
                 raise CoercionException(self, other)
             else:
                 return scaled
+        
+        elif t_o is _mulg.MultiplicativeGroupElement and other.ring.ring == self:
+            return other.val
 
         else:
             return other
@@ -144,8 +165,7 @@ class Ring(BaseObject):
         """
         Returns the `MultiplicativeGroup` of `self`.
         """
-        from samson.math.algebra.rings.multiplicative_group import MultiplicativeGroup
-        return MultiplicativeGroup(self)
+        return _mulg.MultiplicativeGroup(self)
 
 
 

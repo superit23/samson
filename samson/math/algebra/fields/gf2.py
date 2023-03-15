@@ -1,6 +1,6 @@
 from samson.math.algebra.fields.finite_field import FiniteField, FiniteFieldElement
 from samson.math.algebra.fields.field import FieldElement
-from samson.math.general import random_int
+from samson.math.general import random_int, int_to_poly, poly_to_int
 
 class GF2Element(FiniteFieldElement):
     """
@@ -45,6 +45,10 @@ class GF2Element(FiniteFieldElement):
         return int(self)
 
 
+    def degree(self):
+        return self.val.bit_length()-1
+
+
     def __elemadd__(self, other):
         return GF2Element(self.val ^ other.val, self.field)
 
@@ -79,6 +83,9 @@ class GF2Element(FiniteFieldElement):
         return self.__truediv__(other)
 
 
+    def __getitem__(self, idx):
+        return self.ring.internal_ring((self.val >> idx) & 1)
+
 
 class GF2(FiniteField):
     def __init__(self, n: int = 1, reducing_poly: 'Polynomial' = None, symbol_repr: str = 'x'):
@@ -97,7 +104,10 @@ class GF2(FiniteField):
             GF2Element: Coerced element.
         """
         if not type(other) is GF2Element:
-            other = GF2Element(other, self)
+            if type(other) is int and other < self.p**self.n:
+                other = GF2Element(other, self)
+            else:
+                other = GF2Element(poly_to_int(self.internal_field(int_to_poly(other, self.p)).val), self)
 
         return other
 
@@ -121,3 +131,22 @@ class GF2(FiniteField):
         else:
             size = 2**self.n
         return self(random_int(size))
+
+
+    def degree(self):
+        return self.n
+
+
+    def extension(self, degree: int) -> ('Map', 'Field'):
+        from samson.math.algebra.fields.finite_field_isomorphism import FiniteFieldHomomorphism
+        from samson.math.map import Map
+
+        if type(degree) is int:
+            if degree == 1:
+                return Map(self, self, map_func=lambda a: a), self
+
+            codomain = self.__class__(degree*self.n)
+        else:
+            codomain = self.__class__(n=degree.degree(), reducing_poly=degree)
+
+        return FiniteFieldHomomorphism(self, codomain), codomain

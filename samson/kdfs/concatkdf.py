@@ -36,8 +36,8 @@ class ConcatKDF(KDF):
         Returns:
             Bytes: Derived key.
         """
-        ctr     = 1
-        output  = b''
+        ctr    = 1
+        output = b''
         while self.desired_len > len(output):
             output += self.hash_obj.hash(Bytes(ctr).zfill(4) + key + other_info)
             ctr    += 1

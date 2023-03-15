@@ -42,7 +42,7 @@ def point_add(px, pz, qx, qz, rx, rz, n):
 	v = (px+pz) * (qx-qz)
 	upv, umv = u+v, u-v
 
-	x = (rz * upv * upv)
+	x = rz * upv * upv
 	z = rx * umv * umv
 	return x % n, z % n
 
@@ -155,7 +155,7 @@ def ecm(n: int, max_curves: int=10000, max_sigma: int=2**63, target_size: int=No
 
         if 1 < g < n:
             return g
-    
+
 
         # Stage 2
         S[1], S[2] = point_double(qx, qz, n, A24)
@@ -179,7 +179,7 @@ def ecm(n: int, max_curves: int=10000, max_sigma: int=2**63, target_size: int=No
             while q < len(prime_base) and prime_base[q] <= limit:
                 d  = (prime_base[q] - r) // 2
                 f  = (rx - S[2*d-1]) * (rz + S[2*d]) - alpha + beta[d]
-                g = R(g*f)
+                g  = R(g*f)
                 q += 1
 
             trx, trz = rx, rz
@@ -189,10 +189,12 @@ def ecm(n: int, max_curves: int=10000, max_sigma: int=2**63, target_size: int=No
         g = gcd(n, g)
 
         if 1 < g < n:
-            iterator.close()
-            del iterator
+            if visual:
+                iterator.close()
+                del iterator
             return g
 
-    iterator.close()
-    del iterator
+    if visual:
+        iterator.close()
+        del iterator
     raise ProbabilisticFailureException("Factor not found")

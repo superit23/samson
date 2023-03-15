@@ -43,9 +43,9 @@ setup(name='samson-crypto',
           "Programming Language :: Python :: Implementation :: PyPy",
       ],
       author='Dani Cronce',
-      author_email='dani.cronce@wildcardcorp.com',
+      author_email='dani.cronce@leviathansecurity.com',
       keywords='cryptography security cryptanalysis',
-      url="https://github.com/wildcardcorp/samson",
+      url="https://github.com/superit23/samson",
       data_files = [
           ('man/man1', ['man/artifacts/samson.1']),
           ('/etc/bash_completion.d', ['scripts/samson-autocomplete.sh'])

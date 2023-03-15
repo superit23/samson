@@ -1,6 +1,6 @@
 from samson.core.base_object import BaseObject
 from samson.analysis.general import hamming_weight
-from samson.math.algebra.fields.finite_field import FiniteField as FF
+from samson.math.algebra.fields.gf2 import GF2
 from samson.math.symbols import Symbol
 from samson.math.general import int_to_poly
 from samson.math.matrix import Matrix
@@ -108,7 +108,7 @@ class SBox(BaseObject):
 
     def polynomial(self):
         d = max(self.forward).bit_length()
-        F = FF(2, d)
+        F = GF2(d)
         P = F[Symbol('y')]
 
         points = [(F(int_to_poly(k, 2)), F(int_to_poly(v, 2))) for k,v in self.forward.items()]

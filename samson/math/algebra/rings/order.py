@@ -215,7 +215,7 @@ class Order(Ring):
         if not defining_polynomial.is_irreducible():
             raise ValueError(f"{defining_polynomial} is not irreducible")
 
-        self.defining_polynomial = defining_polynomial
+        self.defining_polynomial = defining_polynomial.change_ring(QQ)
         self.symbol          = defining_polynomial.symbol
         self.internal_ring   = QQ[self.symbol]/self.defining_polynomial
         self.symbol.top_ring = self

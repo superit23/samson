@@ -19,7 +19,15 @@ from .curves.named import EdwardsCurve25519, EdwardsCurve448, Curve25519, Curve4
 from .curves.util import *
 
 
-GF    = FF = FiniteField
+def GF(p, n, *args, **kwargs):
+    if p == 2:
+        return GF2(n, *args, **kwargs)
+    else:
+        return FiniteField(p, n, *args, **kwargs)
+
+
+FF = GF
+
 Frac  = FractionField
 QQ    = Frac(ZZ)
 QQ128 = FractionField(ZZ)

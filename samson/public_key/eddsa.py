@@ -117,7 +117,7 @@ class EdDSA(DSA):
 
 
 
-    def sign(self, message: bytes) -> Bytes:
+    def sign(self, message: bytes, k: int=None) -> Bytes:
         """
         Signs a `message`.
 
@@ -131,7 +131,7 @@ class EdDSA(DSA):
         r  = self.H.hash(self.curve.magic + self.h[self.curve.b//8:] + message)[::-1].int()
         R  = self.B * (r % self.curve.l)
         eR = self.encode_point(R)
-        k  = self.H.hash(self.curve.magic + eR + self.encode_point(self.A) + message)[::-1].int()
+        k  = k or self.H.hash(self.curve.magic + eR + self.encode_point(self.A) + message)[::-1].int()
         S  = (r + (k % self.curve.l) * self.a) % self.curve.l
         return eR + Bytes(S, 'little').zfill(self.curve.b//8)
 

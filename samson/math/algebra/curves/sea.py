@@ -45,7 +45,7 @@ def generate_elkies_modular_polynomials(E, l):
     phi_j   = j_Phi_j(y=j)
 
     j_Phi_jj = j_Phi_j.derivative()
-    Phi_jj   = j_Phi_jj(y=j)
+    Phi_jj   = R(j_Phi_jj(y=j))
 
     p_Phi    = phi.derivative(var=x)
     pj_Phi   = Py(list(p_Phi(x=fE)))
@@ -57,7 +57,7 @@ def generate_elkies_modular_polynomials(E, l):
     Phi_f    = pf_Phi(x=fE)
     Phi_ff   = pf_Phi.derivative()(x=fE)
 
-    phi_jf = phi_j/Phi_f
+    phi_jf = R(phi_j)/R(Phi_f)
     f_p    = -j_p*phi_jf
 
     Pyphi = Py(list(j_Phi))
@@ -75,9 +75,10 @@ def generate_elkies_modular_polynomials(E, l):
 
             Pyphi //= roots
 
+    l = R(l)
     for tj in lazy_roots(Pyphi):
         tPhi_j  = j_Phi_j(y=tj)
-        tPhi_jj = j_Phi_jj(y=tj)
+        tPhi_jj = R(j_Phi_jj(y=tj))
 
         tPhi_fj  = pj_Phi_j(y=tj)
         f_tPhi   = P(phi(y=tj))
@@ -88,13 +89,13 @@ def generate_elkies_modular_polynomials(E, l):
 
         # Computation of polynomials is finished
         # 3: Let ȷ˜′ = −j′Φx/(ℓΦy), m˜ = ˜ȷ′/˜ȷ, and ˜k = ˜ȷ′/(1728 − ȷ˜)
-        tj_p = j_p/l * phi_jf * tPhi_f / tPhi_j
+        tj_p = j_p/l * phi_jf * tPhi_f / R(tPhi_j)
         tm   = tj_p/tj
         tk   = tj_p/(1728-tj)
 
         # 4: Define a˜ = ℓ4m˜˜k/48 and b = ℓ6m˜2˜k/864
-        ta = (R(l)**4)*tm*tk/48
-        tb = (R(l)**6)*(tm**2)*tk/864
+        ta = (l**4)*tm*tk/48
+        tb = (l**6)*(tm**2)*tk/864
 
         # 5: Let r = −(j′2Φxx + 2ℓj′ȷ˜′Φxy + ℓ2ȷ˜′2Φyy)/(j′Φx)
         tr_f = -((f_p**2)*tPhi_ff+2*l*f_p*tj_p*tPhi_fj+(l**2)*(tj_p**2)*tPhi_jj)/(f_p*tPhi_f)
@@ -107,7 +108,7 @@ def generate_elkies_modular_polynomials(E, l):
         d = int((R(l)-1)/2)
 
         # 8: Let t0 = d, t1 = p1/2, t2 = ((1 − 10d)a − a˜)/30, and t3 = ((1 − 28d)b −42t1a − ˜b)/70
-        t = DenseVector([d, p_1/2, ((1-10*d)*E.a-ta)/30, ((1-28*d)*E.b-42*p_1/2*E.a-tb)/70])
+        t = DenseVector([R(d), p_1/2, ((1-10*d)*E.a-ta)/30, ((1-28*d)*E.b-42*p_1/2*E.a-tb)/70])
 
         # 9: Let c0 = 0, c1 = 6t2 + 2at0, c2 = 10t3 + 6at1 + 4bt0
         c = DenseVector([R(0), 6*t[2]+2*E.a*t[0], 10*t[3]+6*E.a*t[1]+4*E.b*t[0]])

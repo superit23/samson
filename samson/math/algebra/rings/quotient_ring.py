@@ -252,3 +252,17 @@ class QuotientRing(Ring):
             while r >= size:
                 r = self[random_int(size.ordinality())]
             return r
+
+
+
+    def extension(self, degree: int) -> ('Map', 'Field'):
+        from samson.math.algebra.all import FF
+
+        if type(self.quotient) is _integer_ring.IntegerElement:
+            if self.quotient.is_prime():
+                F = FF(int(self.quotient), n=1)
+                phi, codomain = F.extension(degree)
+                return phi, codomain
+        
+
+        raise NotImplementedError

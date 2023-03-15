@@ -2,6 +2,11 @@ from samson.math.general import is_prime
 from samson.math.algebra.fields.field import Field, FieldElement
 from samson.math.symbols import Symbol
 from samson.math.polynomial import Polynomial
+from samson.utilities.exceptions import CoercionException
+
+from samson.auxiliary.lazy_loader import LazyLoader
+_factor = LazyLoader('_factor', globals(), 'samson.math.factorization.general')
+
 
 class FiniteFieldElement(FieldElement):
     """
@@ -64,6 +69,55 @@ class FiniteFieldElement(FieldElement):
         return self.val.val.degree()
 
 
+
+    def minimal_polynomial(self):
+        min_poly = 1
+        z        = Symbol('z')
+        _P       = self.field[z]
+        frob     = self
+        frob_set = set()
+
+        # Do some Frobenius magic
+        for _ in range(self.field.degree()):
+            if frob in frob_set:
+                break
+
+            frob_set.add(frob)
+            min_poly *= (z - frob)
+            frob    **= self.field.characteristic()
+
+        return min_poly
+
+
+    def natural_subfield(self):
+        min_poly    = self.minimal_polynomial()
+        reduc_poly  = min_poly.change_ring(self.field.internal_ring)
+        return self.field.__class__(self.field.p, min_poly.degree(), reducing_poly=reduc_poly)
+
+
+    def find_subfield_representative(self, subfield):
+        # Find isomorphism between natural subfield and provided subfield
+        iso     = self.natural_subfield().isomorphism(subfield)
+        nat = self.natural_subfield()
+        return [nat.isomorphism(subfield, root_idx=i) for i in range(nat.degree())]
+        # natural = self.natural_subfield()
+
+        # F = natural.internal_field
+        # Q = subfield.internal_field
+        # roots = F.quotient.change_ring(Q).roots()
+        # print(roots)
+        # w = min(F.quotient.change_ring(Q).roots())
+        # f = F(natural.symbol)
+        # k = f(w)
+
+        # for root in Q.quotient.change_ring(F).roots():
+        #     if k(root) == f:
+        #         r = root
+        #         break
+
+        return iso.codomain(iso.f_root)
+
+
 class FiniteField(Field):
     """
     Finite field of GF(p**n) constructed using a `PolynomialRing`.
@@ -96,7 +150,7 @@ class FiniteField(Field):
 
         if reducing_poly:
             assert reducing_poly.coeff_ring == self.internal_ring
-            x = reducing_poly.symbol
+            x = Symbol(reducing_poly.symbol.repr)
             P = self.internal_ring[x]
 
         else:
@@ -114,8 +168,8 @@ class FiniteField(Field):
                 reducing_poly = P.find_irreducible_poly(n)
 
 
-        self.reducing_poly   = reducing_poly
-        self.internal_field  = P/P(reducing_poly)
+        self.reducing_poly  = reducing_poly
+        self.internal_field = P/P(reducing_poly)
         if n > 1:
             self.internal_field.quotient.cache_div((n-1)*2)
 
@@ -176,6 +230,10 @@ class FiniteField(Field):
         """
         if not type(other) is FiniteFieldElement:
             other = FiniteFieldElement(self.internal_field(other), self)
+        elif other.field.p != self.p:
+            raise CoercionException("Coerced object characteristic mismatches")
+        elif other.field.n != self.n:
+            other = FiniteFieldElement(self.internal_field(other.val.val), self)
 
         return other
 
@@ -203,6 +261,21 @@ class FiniteField(Field):
         return type(self) == type(other) and self.p == other.p and self.n == other.n
 
 
-    def isomorphism(self, other: 'FiniteField') -> list:
+    def isomorphism(self, other: 'FiniteField', root_idx: int=0) -> list:
         from samson.math.algebra.fields.finite_field_isomorphism import FiniteFieldIsomorphism
-        return FiniteFieldIsomorphism(self, other)
+        return FiniteFieldIsomorphism(self, other, root_idx=root_idx)
+
+
+    def extension(self, degree: int) -> ('Map', 'Field'):
+        from samson.math.algebra.fields.finite_field_isomorphism import FiniteFieldHomomorphism
+        from samson.math.map import Map
+
+        if type(degree) is int:
+            if degree == 1:
+                return Map(self, self, map_func=lambda a: a), self
+
+            codomain = self.__class__(self.p, degree*self.n)
+        else:
+            codomain = self.__class__(p=self.p, n=degree.degree(), reducing_poly=degree)
+
+        return FiniteFieldHomomorphism(self, codomain), codomain

@@ -128,7 +128,11 @@ class RealElement(FieldElement):
 
 
     def is_effectively_zero(self) -> bool:
-        return abs(self) <= self.field(1)/2**self.field.prec
+        return self.val.ae(0)
+    
+
+    def almost_equal(self, other) -> bool:
+        return self.val.ae(other.val)
     
 
     def gcd(self, other: 'RealElement') -> 'RealElement':

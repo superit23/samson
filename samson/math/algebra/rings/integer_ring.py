@@ -201,6 +201,24 @@ class IntegerRing(Ring):
         return type(self) == type(other)
 
 
+    def extension(self, degree: int) -> ('Map', 'Field'):
+        from samson.math.algebra.rings.order import Order
+        from samson.math.map import Map
+
+        if type(degree) is int:
+            if degree == 1:
+                return Map(self, self, map_func=lambda a: a), self
+
+            from samson.math.symbols import Symbol
+            x    = Symbol('x')
+            poly = ZZ[x].find_irreducible_poly(degree)
+        else:
+            poly = degree
+
+        O = Order(poly)
+        return Map(self, self, map_func=lambda a: O(a)), O
+
+
 ZZ = IntegerRing()
 
 @lru_cache(1)

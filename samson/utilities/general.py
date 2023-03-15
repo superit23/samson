@@ -78,7 +78,6 @@ class _LazyShuffler(object):
             self.dlog_cache = sorted(self.dlog_cache)
 
 
-        # TODO: Binary search?
         for throwout_idx in self.dlog_cache:
             if throwout_idx < idx:
                 idx += 1

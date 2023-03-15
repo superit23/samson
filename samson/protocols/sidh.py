@@ -25,16 +25,6 @@ def find_ss_prime(a: int, b: int, min_bits: int, max_strength_diff: float=0.005)
     return p
 
 
-def find_linearly_independent_points(E, n):
-    while True:
-        P, Q = [E.find_element_of_order(n, allow_order_call=True) for _ in range(2)]
-        if not P.linear_relation(Q)[0]:
-            return P, Q
-        # w = P.weil_pairing(Q, n)
-        # if w.ring.mul_group()(w).order() == n:
-        #     return P, Q
-
-
 def extract_prime_powers(p):
     facs = list(factor(p+1).items())
 
@@ -108,7 +98,7 @@ class SIDH(KeyExchangeAlg):
 
         Parameters:
             challenge (WeierstrassPoint): The other instance's challenge.
-        
+
         Returns:
             object: Shared key.
         """
@@ -153,7 +143,8 @@ class SIDH(KeyExchangeAlg):
 
         wa, ea, wb, eb = extract_prime_powers(p)
 
-        Pa, Qa = find_linearly_independent_points(E, wa**ea)
-        Pb, Qb = find_linearly_independent_points(E, wb**eb)
+        G1, G2 = E.abelian_group_generators()
+        Pa, Qa = G1*(wb**eb), G2*(wb**eb)
+        Pb, Qb = G1*(wa**ea), G2*(wa**ea)
 
         return E, Pa, Qa, Pb, Qb

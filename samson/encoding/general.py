@@ -29,7 +29,7 @@ def bcrypt_b64_encode(bytestring: bytes) -> bytes:
 
     Parameters:
         bytestring (bytes): Bytes to encode.
-    
+
     Returns:
         bytes: bcrypt-base64 encoded bytestring.
     """
@@ -42,7 +42,7 @@ def bcrypt_b64_decode(bytestring: bytes) -> bytes:
 
     Parameters:
         bytestring (bytes): Bytes to decode.
-    
+
     Returns:
         bytes: bcrypt-base64 decoded bytestring.
     """
@@ -57,7 +57,7 @@ def url_b64_encode(bytestring: bytes) -> bytes:
 
     Parameters:
         bytestring (bytes): Bytes to encode.
-    
+
     Returns:
         bytes: url-base64 encoded bytestring.
     """
@@ -70,7 +70,7 @@ def url_b64_decode(bytestring: bytes) -> bytes:
 
     Parameters:
         bytestring (bytes): Bytes to decode.
-    
+
     Returns:
         bytes: url-base64 decoded bytestring.
     """
@@ -87,7 +87,7 @@ def to_NAF(input_arg: bytes) -> list:
 
     Parameters:
         input_arg (bytes): Raw bytes/integer.
-    
+
     Returns:
         list: Sequence in NAF.
     """
@@ -118,7 +118,7 @@ def from_NAF(naf: list) -> int:
 
     Parameters:
         naf (list): NAF sequence.
-    
+
     Returns:
         int: Integer representation.
     """
@@ -136,7 +136,7 @@ def fast_naf(x: int) -> Tuple[int, int]:
 
     Parameters:
         x (int): Integer.
-    
+
     Returns:
         Tuple[int, int]: Formatted as positive NAF, negative NAF.
     """
@@ -157,7 +157,7 @@ def int_to_bytes(n: int, byteorder: str='big') -> bytes:
     Parameters:
         n         (int): Integer.
         byteorder (str): Desired byte order ('big' or 'little').
-    
+
     Returns:
         bytes: Bytes representation of `n`.
     """
@@ -172,7 +172,7 @@ def bytes_to_bitstring(input_bytes: bytes, fill: int=8) -> str:
     Parameters:
         input_bytes (bytes): Bytes to convert.
         fill          (int): Length of the output bitstring. Pads with zeroes.
-    
+
     Returns:
         bytes: Bytes representation of `n`.
     """
@@ -187,7 +187,7 @@ def bitstring_to_bytes(bitstring: str, byteorder: str='big') -> bytes:
     Parameters:
         bitstring (str): Bitstring to convert.
         byteorder (str): Desired byte order ('big' or 'little').
-    
+
     Returns:
         bytes: Bytes representation.
     """
@@ -201,7 +201,7 @@ def export_der(items: list, item_types: list=None) -> bytes:
 
     Parameters:
         items (list): Items to be encoded.
-    
+
     Returns:
         bytes: DER-encoded sequence bytes.
     """
@@ -232,7 +232,7 @@ def bytes_to_der_sequence(buffer: bytes, passphrase: bytes=None) -> _Sequence:
     Parameters:
         buffer     (bytes): The bytes to DER-decode.
         passphrase (bytes): Passphrase to decrypt DER-bytes (if applicable).
-    
+
     Returns:
         Sequence: DER sequence.
     """
@@ -256,7 +256,7 @@ def oid_tuple_to_bytes(oid_tuple: tuple) -> bytes:
 
     Parameters:
         oid_tuple (tuple): OID tuple to encode.
-    
+
     Returns:
         bytes: BER-encoded OID.
     """
@@ -328,6 +328,17 @@ class PKIAutoParser(object):
             buffer = pem_decode(buffer, passphrase)
 
         return PKIAutoParser.get_encoding(buffer, passphrase=passphrase).decode(buffer, passphrase=passphrase)
+    
+
+
+    @staticmethod
+    def parse(buffer: bytes, passphrase: bytes=None):
+        try:
+            return PKIAutoParser.import_key(buffer, passphrase)
+        except ValueError:
+            from samson.encoding.x509.x509_certificate_revocation_list import X509CertificateRevocationList
+            return X509CertificateRevocationList.parse(buffer)
+
 
 
     @staticmethod

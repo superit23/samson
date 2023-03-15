@@ -748,7 +748,7 @@ class X509IssuingDistributionPoint(X509Extension):
             only_some_reasons=only_some_reasons,
             indirect_crl=indirect_crl,
             only_contains_attr_certs=only_contains_attr_certs,
-            critical= critical
+            critical=critical
         )
 
 
@@ -833,7 +833,7 @@ class X509AuthorityInfoAccess(X509Extension):
 
 
     def build(self) -> rfc5280.Extension:
-        aia   = rfc5280.AuthorityInfoAccessSyntax()
+        aia = rfc5280.AuthorityInfoAccessSyntax()
 
         for access_desc in self.access_descriptions:
             acc_desc = rfc5280.AccessDescription()
@@ -1437,7 +1437,7 @@ class IntExtension(X509Extension):
     @classmethod
     def parse(cls, value_bytes: bytes, critical: bool) -> 'IntExtension':
         ext_val, _ = decoder.decode(value_bytes)
-        return cls(**{cls.DATA_ATTR: ext_val.asInteger(), 'critical': critical})
+        return cls(**{cls.DATA_ATTR: ext_val.asInteger() if hasattr(ext_val, 'asInteger') else int(ext_val), 'critical': critical})
 
 
 
