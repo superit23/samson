@@ -1,6 +1,6 @@
 from samson.utilities.exceptions import NoSolutionException
 from samson.math.algebra.rings.ring import Ring, RingElement
-from samson.math.general import square_and_mul, gcd, kth_root, coppersmiths, product
+from samson.math.general import square_and_mul, gcd, kth_root, coppersmiths, product, cyclotomic_polynomial
 from samson.math.factorization.general import factor as factor_int, pk_1_smallest_divisor
 from samson.math.factorization.factors import Factors
 from samson.math.sparse_vector import SparseVector
@@ -911,6 +911,17 @@ class Polynomial(RingElement):
 
 
     edf = equal_degree_factorization
+
+
+
+    def _xk1_factor(self):
+        assert self.coeffs.sparsity == 2 and self.coeffs[0] == self.coeff_ring(-1)
+
+        # Shortcut; don't factor in ZZ
+        if self.coeff_ring == _integer_ring.ZZ:
+            return Factors({cyclotomic_polynomial(d):1 for d in factor_int(self.degree()).divisors()})
+        else:
+            return sum([cyclotomic_polynomial(d).change_ring(self.coeff_ring).factor() for d in factor_int(self.degree()).divisors()], Factors())
 
 
     def _is_irred_ZZ(self):

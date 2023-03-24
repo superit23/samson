@@ -19,7 +19,7 @@ from .curves.named import EdwardsCurve25519, EdwardsCurve448, Curve25519, Curve4
 from .curves.util import *
 
 
-def GF(p, n, *args, **kwargs):
+def GF(p, n=1, *args, **kwargs):
     if p == 2:
         return GF2(n, *args, **kwargs)
     else:

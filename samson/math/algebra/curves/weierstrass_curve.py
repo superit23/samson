@@ -3,7 +3,7 @@ from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.polynomial import Polynomial
 from samson.math.factorization.general import factor, is_perfect_power
 from samson.math.algebra.curves.util import EllipticCurveCardAlg
-from samson.math.general import mod_inv, schoofs_algorithm, gcd, hasse_frobenius_trace_interval, sieve_of_eratosthenes, product, crt, is_prime, kth_root, batch_inv, lcm, frobenius_trace_mod_l, legendre, cornacchias_algorithm, hilbert_class_polynomial, random_int, random_int_between, find_prime, primes, cyclomotic_polynomial, find_representative
+from samson.math.general import mod_inv, schoofs_algorithm, gcd, hasse_frobenius_trace_interval, sieve_of_eratosthenes, product, crt, is_prime, kth_root, batch_inv, lcm, frobenius_trace_mod_l, legendre, cornacchias_algorithm, hilbert_class_polynomial, random_int, random_int_between, find_prime, primes, cyclotomic_polynomial, find_representative
 from samson.math.discrete_logarithm import pohlig_hellman
 from samson.math.map import Map
 from samson.utilities.exceptions import NoSolutionException, SearchspaceExhaustedException, CoercionException
@@ -422,7 +422,7 @@ class WeierstrassPoint(RingElement):
 
         Returns:
             Map: Map function.
-        
+
         Examples:
             >>> from samson.math.algebra.curves.weierstrass_curve import EllipticCurve
             >>> from samson.math.general import random_int
@@ -441,7 +441,7 @@ class WeierstrassPoint(RingElement):
         E = self.curve
         F = E.ring
 
-        k      = E.embedding_degree()
+        k      = self.embedding_degree()
         hom, K = F.extension(k)
         E_     = WeierstrassCurve(hom(E.a), hom(E.b))
         Km     = K.mul_group()
@@ -1759,7 +1759,7 @@ class WeierstrassCurve(Ring):
         # First we need to estimate the starting point
         # Since `r` will be ~l^(c.degree()), m~r, and q = m*r
         # we get the following `start`
-        c     = cyclomotic_polynomial(k)
+        c     = cyclotomic_polynomial(k)
         start = 2**((bits // c.degree() // 2)-3)
 
         # This is just to add some randomness

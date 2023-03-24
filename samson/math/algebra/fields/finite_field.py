@@ -95,27 +95,15 @@ class FiniteFieldElement(FieldElement):
         return self.field.__class__(self.field.p, min_poly.degree(), reducing_poly=reduc_poly)
 
 
-    def find_subfield_representative(self, subfield):
+    def find_subfield_representative(self, subfield, return_all: bool=False):
         # Find isomorphism between natural subfield and provided subfield
-        iso     = self.natural_subfield().isomorphism(subfield)
         nat = self.natural_subfield()
-        return [nat.isomorphism(subfield, root_idx=i) for i in range(nat.degree())]
-        # natural = self.natural_subfield()
 
-        # F = natural.internal_field
-        # Q = subfield.internal_field
-        # roots = F.quotient.change_ring(Q).roots()
-        # print(roots)
-        # w = min(F.quotient.change_ring(Q).roots())
-        # f = F(natural.symbol)
-        # k = f(w)
+        if return_all:
+            return [nat.isomorphism(subfield, root_idx=i) for i in range(nat.degree())]
+        else:
+            return nat.isomorphism(subfield)
 
-        # for root in Q.quotient.change_ring(F).roots():
-        #     if k(root) == f:
-        #         r = root
-        #         break
-
-        return iso.codomain(iso.f_root)
 
 
 class FiniteField(Field):

@@ -50,13 +50,13 @@ class MatrixRing(Ring):
         return f'M_{self.size}({self.ring})'
 
 
-    def coerce(self, other: object) -> Matrix:
+    def coerce(self, other: object, soft_fail: bool=True) -> Matrix:
         """
         Attempts to coerce other into an element of the algebra.
 
         Parameters:
             other (object): Object to coerce.
-        
+
         Returns:
             Matrix: Coerced element.
         """
@@ -72,7 +72,7 @@ class MatrixRing(Ring):
             raise CoercionException(self, other)
 
 
-        if not elem.is_square():
+        if not elem.is_square() and not soft_fail:
             raise CoercionException(elem, "Elements must be square in a MatrixRing")
 
         return elem

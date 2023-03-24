@@ -12,6 +12,7 @@ from samson.auxiliary.lazy_loader import LazyLoader
 _samson_math  = LazyLoader('_samson_math', globals(), 'samson.math.general')
 _siqs         = LazyLoader('_siqs', globals(), 'samson.math.factorization.siqs')
 _integer_ring = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
+_symbol       = LazyLoader('_symbol', globals(), 'samson.math.symbols')
 
 import logging
 log = logging.getLogger(__name__)
@@ -288,38 +289,9 @@ def _pk1_factor(p, k):
     """
     Factors numbers of the form `p^k-1`.
     """
-    divisors = sorted(factor(k).divisors(recombine=False))
-    divisor_cache = {d:p**d.recombine()-1 for d in divisors}
-    facs = Factors()
-    QQ = _integer_ring._get_QQ()
-
-    for div in divisors:
-        n = QQ(1)
-        for d in sorted(div.divisors(False)):
-            n *= QQ(divisor_cache[d])**(div // d).mobius()
-
-            print(div.recombine(), repr(d), n)
-            print("MOB", divisor_cache[d], (div // d).mobius())
-
-            if d == div:
-                print("DONE", div.recombine(), int(n))
-                print()
-                break
-
-        facs += factor(int(n))
-
-    return facs
-
-
-
-    for q, e in factor(k).items():
-        facs = factor(p-1)
-        for i in range(2, k+1):
-            facs += factor((p**i-1) // (p**(i-1)-1))
-        
-        return facs
-
-
+    x  = _symbol.Symbol('x')
+    _P = _integer_ring.ZZ[x]
+    return sum([factor(int(f(p)), max_factor_size=p.bit_length()) for f in (x**int(k)-1)._xk1_factor()], Factors())
 
 
 def _modular_lucas(v: int, a: int, n: int) -> int:
@@ -586,7 +558,7 @@ _ECM_QUICK_ITERATIONS = 100
 _CADO_SUPREMACY = 256
 
 @RUNTIME.global_cache()
-def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, use_msieve: bool=True, use_cado_nfs: bool=True, use_siqs: bool=False, use_smooth_p: bool=False, use_ecm: bool=True, ecm_attempts: int=10000, perfect_power_checks: bool=True, mersenne_check: bool=True, visual: bool=False, reraise_interrupt: bool=False, user_stop_func: FunctionType=None) -> Factors:
+def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, use_msieve: bool=True, use_cado_nfs: bool=True, use_siqs: bool=False, use_smooth_p: bool=False, use_ecm: bool=True, ecm_attempts: int=10000, perfect_power_checks: bool=True, mersenne_check: bool=True, visual: bool=False, reraise_interrupt: bool=False, user_stop_func: FunctionType=None, max_factor_size: int=None) -> Factors:
     """
     Factors an integer `n` into its prime factors.
 
@@ -606,6 +578,7 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
         visual               (bool): Whether or not to display a progress bar.
         reraise_interrupt    (bool): Whether or not to reraise a KeyboardInterrupt.
         user_stop_func       (func): A function that takes in (`n`, facs) and returns True if the user wants to stop factoring.
+        max_factor_size       (int): Maximum size of factor to search for in bits (ECM only).
 
     Returns:
         Factors: Factorization of `n`.
@@ -748,18 +721,22 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
                     pass
 
 
+
+        # Check if perfect power minus 1
+        ipp, p, k = is_perfect_power(n+1)
+        if ipp and p > 1 and k > 1:
+            if visual:
+                log.info("p^k-1 detected; using cyclotomic factorization")
+
+            return _pk1_factor(p, k)
+
+
         if use_trial:
             # Trial division
             trial_facs = trial_division(n, limit=limit, progress_update=progress_update)
             factors += trial_facs
             n //= trial_facs.recombine()
             n = check_perfect_powers(n)
-
-
-        # Check if perfect power minus 1
-        ipp, p, k = is_perfect_power(n+1)
-        if ipp and p > 1 and k > 1:
-            return _pk1_factor(p, k)
 
 
         n_bits = n.bit_length()
@@ -780,32 +757,38 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
             
             bounds_tested = set()
 
-            # Try to pull out smaller factors first
-            for target_ratio in (5, 4, 3):
-                target_size = n.bit_length() // target_ratio
-                bounds_idx  = binary_search_list(ECM_BOUNDS, target_size, fuzzy=True)
-                m = n
+            if max_factor_size is None:
+                try:
+                    # Try to pull out smaller factors first
+                    for target_ratio in (5, 4, 3):
+                        target_size = n.bit_length() // target_ratio
+                        bounds_idx  = binary_search_list(ECM_BOUNDS, target_size, fuzzy=True)
+                        m = n
 
-                if bounds_idx in bounds_tested:
-                    continue
+                        if bounds_idx in bounds_tested:
+                            continue
 
-                n, internal_reraise = quick_factor(lambda n: ecm(n, max_curves=_ECM_QUICK_ITERATIONS, target_size=target_size, visual=visual), n)
-                if internal_reraise:
-                    raise KeyboardInterrupt
-                
-                # We found nothing, mark it off
-                if m == n:
-                    bounds_tested.add(bounds_idx)
+                        n, internal_reraise = quick_factor(lambda n: ecm(n, max_curves=_ECM_QUICK_ITERATIONS, target_size=target_size, visual=visual), n)
+                        if internal_reraise:
+                            raise KeyboardInterrupt
+                        
+                        # We found nothing, mark it off
+                        if m == n:
+                            bounds_tested.add(bounds_idx)
+                except ValueError:
+                    # Probably too big for ECM implementation
+                    pass
 
 
-            if not use_siqs:
+            if not use_siqs or max_factor_size <= 100:
                 if visual:
                     log.info("Attempting ECM full factor")
 
                 # Lenstra's ECM
                 while not is_factored(n):
                     try:
-                        n_fac = ecm(n, max_curves=ecm_attempts, visual=visual)
+                        # Override max ECM params since we have no other choice
+                        n_fac = ecm(n, max_curves=ecm_attempts, visual=visual, override_max=True, target_size=max_factor_size)
 
                         # ECM will give a factor, but not necessarily a prime
                         n = process_possible_composite(n, n_fac)

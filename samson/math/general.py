@@ -197,6 +197,9 @@ def gcd(*args) -> 'RingElement':
         def _gcd(a,b):
             while b:
                 a, b = b, a % b
+            
+            if a < 0:
+                a = -a
             return a
     else:
         def _gcd(a,b):
@@ -297,6 +300,11 @@ def lcm(*args) -> 'RingElement':
     """
     def _lcm(a, b):
         return a // gcd(a, b) * b
+
+
+    # Handle lists for convenience
+    if len(args) == 1 and type(args[0]) is list:
+        args = args[0]
 
     total = args[0]
     for arg in args[1:]:
@@ -3263,7 +3271,7 @@ def batch_neg(elements: List['RingElement']) -> List['RingElement']:
 
 
 
-def cyclomotic_polynomial(n: int) -> 'Polynomial':
+def cyclotomic_polynomial(n: int) -> 'Polynomial':
     """
     Generates the `n`-th cyclotomic polynomial
 
@@ -3282,13 +3290,13 @@ def cyclomotic_polynomial(n: int) -> 'Polynomial':
     facs   = _factor_gen.factor(n)
     t      = totient(n, facs)
     P      = _integer_ring.ZZ[[x]]
-    P.prec = t+1
+    P.prec = max(t+1, 2)
 
     square_free = _factor_gen.factor(product(facs))
 
     # Shortcuts
     if n == 1:
-        return x - 1
+        return (x - 1).val
 
     elif is_prime(n):
         return P([1 for _ in range(n)]).val
@@ -3297,12 +3305,12 @@ def cyclomotic_polynomial(n: int) -> 'Polynomial':
     elif facs.is_perfect_power():
         k = facs.largest_root()
         p = facs.kth_root(k).recombine()
-        C = cyclomotic_polynomial(p)
+        C = cyclotomic_polynomial(p)
         return C.map_coeffs(lambda i, c: (i*p**(k-1), c))
 
-    # 2*p (this is faster than `cyclomotic_polynomial(d // 2)(-x)`)
+    # 2*p (this is faster than `cyclotomic_polynomial(d // 2)(-x)`)
     elif not n % 2 and (facs // 2).is_perfect_power() and n != 4:
-        C = cyclomotic_polynomial(n // 2)
+        C = cyclotomic_polynomial(n // 2)
         return C.map_coeffs(lambda i, c: (i, ((i % 2)*-2+1)*c))
 
     # This algorithm only works if it has NO repeated factors
@@ -3328,7 +3336,7 @@ def cyclomotic_polynomial(n: int) -> 'Polynomial':
         return ((c[::-1] << D) + c) - (c[D]*x**D)
 
     else:
-        C = cyclomotic_polynomial(square_free.recombine())
+        C = cyclotomic_polynomial(square_free.recombine())
         squares = (facs/square_free).recombine()
         return C.map_coeffs(lambda i, c: (i*squares, c))
 

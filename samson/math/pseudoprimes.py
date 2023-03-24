@@ -1,4 +1,4 @@
-from samson.math.general import miller_rabin, is_prime, totient, cyclomotic_polynomial
+from samson.math.general import miller_rabin, is_prime, totient, cyclotomic_polynomial
 from samson.math.prime_gen import PrimeEngine
 from samson.math.factorization.factors import Factors
 from samson.utilities.exceptions import SearchspaceExhaustedException
@@ -242,7 +242,7 @@ def find_pseudo4(bits):
 def find_pseudo5(bits):
     for i in range(bits+1, 4*bits):
         if totient(i) == bits:
-            k = int(cyclomotic_polynomial(i)(2))
+            k = int(cyclotomic_polynomial(i)(2))
             if gcd(i, k) == 1 and k.bit_length() == bits and not is_prime(k):
                 return k
 

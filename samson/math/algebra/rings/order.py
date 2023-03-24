@@ -1,6 +1,6 @@
 from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.algebra.rings.integer_ring import ZZ, _get_QQ
-from samson.math.general import hilbert_class_polynomial, is_prime, product, cyclomotic_polynomial, cornacchias_algorithm, xgcd
+from samson.math.general import hilbert_class_polynomial, is_prime, product, cyclotomic_polynomial, cornacchias_algorithm, xgcd
 from samson.math.symbols import Symbol, oo
 from samson.math.factorization.general import factor, Factors
 from samson.math.matrix import Matrix
@@ -503,7 +503,7 @@ class QuadraticField(Order):
 class CyclotomicField(Order):
     def __init__(self, n: int) -> 'Order':
         self.n = n
-        super().__init__(cyclomotic_polynomial(n))
+        super().__init__(cyclotomic_polynomial(n))
 
 
     def discriminant(self) -> int:

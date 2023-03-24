@@ -14,7 +14,7 @@ ECM_BOUNDS = (
 )
 
 
-def compute_bounds(log_n: int):
+def compute_bounds(log_n: int, override_max: bool=False):
     """
     Computes B1 and B2 bounds for target factor. Note this is in log2 relative to the target and not log10 absolute.
     Computed by taking generic ECM bounds (e.g. 10^30, 10^40, etc), converting to log2, and dividing by 2
@@ -31,8 +31,10 @@ def compute_bounds(log_n: int):
         B1, B2 = 1000000, 1045563762
     elif log_n <= 133:
         B1, B2 = 3000000, 5706890290
-    else: 
+    elif not override_max: 
         raise ValueError("Integer too large for ECM implementation")
+    else:
+         B1, B2 = 3000000, 5706890290
     return B1, B2
 
 
@@ -77,16 +79,17 @@ def scalar_multiply(k, px, pz, n, a24):
 _B2_SIEVE_CACHE = {}
 _K_CACHE        = {}
 
-def ecm(n: int, max_curves: int=10000, max_sigma: int=2**63, target_size: int=None, visual: bool=False) -> Factors:
+def ecm(n: int, max_curves: int=10000, max_sigma: int=2**63, target_size: int=None, visual: bool=False, override_max: bool=False) -> Factors:
     """
     Uses Lenstra's Elliptic Curve Method to probabilistically find a factor of `n`.
 
     Parameters:
-        n           (int): Integer to factor.
-        max_curves  (int): Maximum number of curves to attempt.
-        max_sigma   (int): Maximum curve parameter bound.
-        target_size (int): Size of factor to target in bits (defaults to half of total bitlength).
-        visual     (bool): Whether or not to show progress bar.
+        n             (int): Integer to factor.
+        max_curves    (int): Maximum number of curves to attempt.
+        max_sigma     (int): Maximum curve parameter bound.
+        target_size   (int): Size of factor to target in bits (defaults to half of total bitlength).
+        visual       (bool): Whether or not to show progress bar.
+        override_max (bool): Whether or not to override the maximum allowed input size.
 
     Returns:
         int: Factor of `n`.
@@ -102,7 +105,7 @@ def ecm(n: int, max_curves: int=10000, max_sigma: int=2**63, target_size: int=No
     target_size = target_size or math.log2(n)/2
 
     # If no target size, target half in case of semi-prime
-    B1, B2 = compute_bounds(target_size)
+    B1, B2 = compute_bounds(target_size, override_max=override_max)
 
     if B2 in _B2_SIEVE_CACHE:
         prime_base = _B2_SIEVE_CACHE[B2]

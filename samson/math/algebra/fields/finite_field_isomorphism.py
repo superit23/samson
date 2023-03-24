@@ -14,7 +14,7 @@ class FiniteFieldIsomorphism(Map):
         f = domain.random()
         while not f.degree():
             f = domain.random()
-        
+
         f = f.val
         k = f(w)
 
