@@ -1,6 +1,6 @@
 from samson.utilities.exceptions import NoSolutionException
 from samson.math.algebra.rings.ring import Ring, RingElement
-from samson.math.general import square_and_mul, gcd, kth_root, coppersmiths, product, cyclotomic_polynomial
+from samson.math.general import square_and_mul, gcd, kth_root, coppersmiths, product, cyclotomic_polynomial, next_prime
 from samson.math.factorization.general import factor as factor_int, pk_1_smallest_divisor
 from samson.math.factorization.factors import Factors
 from samson.math.sparse_vector import SparseVector
@@ -16,6 +16,9 @@ import itertools
 from samson.auxiliary.lazy_loader import LazyLoader
 _integer_ring  = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
 _symbol        = LazyLoader('_symbol', globals(), 'samson.math.symbols')
+_gss           = LazyLoader('_gss', globals(), 'samson.math.fft.gss')
+_ntt           = LazyLoader('_ntt', globals(), 'samson.math.fft.ntt')
+
 
 
 def _should_kronecker(n):
@@ -925,6 +928,10 @@ class Polynomial(RingElement):
 
 
     def _is_irred_ZZ(self):
+        """
+        References:
+            https://en.wikipedia.org/wiki/Perron%27s_irreducibility_criterion
+        """
         from samson.math.general import batch_gcd
     
         ZZ   = _integer_ring.ZZ
@@ -976,6 +983,22 @@ class Polynomial(RingElement):
                 return True
 
 
+        # Perron's Criterion
+        if poly.is_monic() and n > 2 and poly[0]:
+            z = (1 + sum([abs(v) for v in poly.coeffs[:n-1].values.values()]))
+            if (abs(poly[n-1]) > z) or (abs(poly[n-1]) == z and 0 not in (poly(1), poly(-1))):
+                return True
+
+
+        # Cohn's Criterion
+        # Our primality testing function is fast even for large numbers
+        # If it's composite, there's a 92.17% chance that trial division will find it composite
+        # Then 75% that Miller's with base 2 will find it composite
+        for i in range(int(max(poly)), 1024):
+            if poly(i).is_prime():
+                return True
+
+
         # Eisenstein’s Criterion
         # NOTE: We use 'batch_gcd' to cut down on the factors we have to consider
         # and hopefully break apart large factors.
@@ -1004,6 +1027,7 @@ class Polynomial(RingElement):
         return self._fac_ZZ() == [self]
 
 
+    @RUNTIME.global_cache(enable_user_cache=True, user_cache_selector=lambda p: p)
     def is_irreducible(self) -> bool:
         """
         Determines if a Polynomial is irreducible over its ring.
@@ -1097,7 +1121,6 @@ class Polynomial(RingElement):
         """
         Embeds a polynomial over ZZ into a field F_p such that a lossless factorization can occur.
         """
-        from samson.math.general import next_prime
         ZZ = _integer_ring.ZZ
 
         assert self.coeff_ring == ZZ
@@ -1528,6 +1551,22 @@ class Polynomial(RingElement):
 
         """
         return Polynomial({idx: coeff.val for idx, coeff in self.coeffs}, coeff_ring=self.coeff_ring.ring)
+    
+
+    def __elemfloordiv__(self, other):
+        # Check for zero
+        if not other:
+            raise ZeroDivisionError
+
+        # Divisor > dividend, early out
+        n = other.degree()
+        if n > self.degree():
+            return self.ring.zero, self
+
+        if n < 8 or not (self.coeff_ring.is_field() and self.coeff_ring.characteristic()):
+            return divmod(self, other)[0]
+        else:
+            return self._hensel_division(other)
 
 
     def __elemdivmod__(self, other: 'Polynomial') -> ('Polynomial', 'Polynomial'):
@@ -1559,50 +1598,55 @@ class Polynomial(RingElement):
         if n > self.degree():
             return self.ring.zero, self
 
-        q = self.ring.zero
-        r = self
+        if n < 8 or not (self.coeff_ring.is_field() and self.coeff_ring.characteristic()):
+            q = self.ring.zero
+            r = self
 
-        remainder = self._create_sparse([0])
-        is_field  = self.coeff_ring.is_field()
+            remainder = self._create_sparse([0])
+            is_field  = self.coeff_ring.is_field()
 
-        zero, one = self.coeff_ring.zero, self.coeff_ring.one
+            zero, one = self.coeff_ring.zero, self.coeff_ring.one
 
-        if is_field:
-            o_lc_inv = ~other.LC()
-
-        while r and r.degree() >= n:
-            r_start = r
-            # Fields have exact division, but we have to
-            # keep track of remainders for non-trivial Euclidean division
             if is_field:
-                t, rem = r.LC() * o_lc_inv, zero
-            else:
-                t, rem = divmod(r.LC(), other.LC())
+                o_lc_inv = ~other.LC()
 
-                # Handle -1 specifically!
-                # This means it doesn't ACTUALLY divide it
-                if t == -one and rem > zero:
-                    t, rem = zero, r.LC()
+            while r and r.degree() >= n:
+                r_start = r
+                # Fields have exact division, but we have to
+                # keep track of remainders for non-trivial Euclidean division
+                if is_field:
+                    t, rem = r.LC() * o_lc_inv, zero
+                else:
+                    t, rem = divmod(r.LC(), other.LC())
 
-
-            r -= (other << (r.degree() - n)) * t
-            remainder[r.degree()] = rem
-
-            if not t:
-                r.coeffs[r.degree()] = t
-
-            # Update q
-            q  += t
-            q <<= r_start.degree() - r.degree()
+                    # Handle -1 specifically!
+                    # This means it doesn't ACTUALLY divide it
+                    if t == -one and rem > zero:
+                        t, rem = zero, r.LC()
 
 
-        r_deg = r.degree()
-        r     = self.ring(remainder) + self.ring(r.coeffs[:n])
+                r -= (other << (r.degree() - n)) * t
+                remainder[r.degree()] = rem
 
-        if q:
-            q >>= (n-r_deg)
+                if not t:
+                    r.coeffs[r.degree()] = t
 
-        return q, r
+                # Update q
+                q  += t
+                q <<= r_start.degree() - r.degree()
+
+
+            r_deg = r.degree()
+            r     = self.ring(remainder) + self.ring(r.coeffs[:n])
+
+            if q:
+                q >>= (n-r_deg)
+
+            return q, r
+        else:
+            # Coeffs in FF with deg > 7; Hensel division supremacy
+            q = self._hensel_division(other)
+            return q, self-other*q
 
 
     def _hensel_division(self, other: 'Polynomial') -> 'Polynomial':
@@ -1612,6 +1656,15 @@ class Polynomial(RingElement):
         References:
             "Algebra and Computation, Lecture 6" (http://people.csail.mit.edu/madhu/ST12/scribe/lect06.pdf)
         """
+        ZZ = _integer_ring.ZZ
+
+        # TODO: Implement better version for ZZ; the size actually EXPLODES in reverse! Very large coeffs
+        if self.coeff_ring == ZZ:
+            p = next_prime(max([int(abs(a)) for a in (list(self) + list(other))])**self.degree()+1)
+            R = ZZ/ZZ(p)
+            return self.change_ring(R)._hensel_division(other.change_ring(R)).change_ring(ZZ).map_coeffs(lambda idx, c: (idx, c if c < p // 2 else -(p-c)))
+
+
         Symbol = _symbol.Symbol
 
         f_hat  = self.reverse()
@@ -1648,6 +1701,11 @@ class Polynomial(RingElement):
         return self._create_poly(vec)
 
 
+    @RUNTIME.global_cache(8)
+    def _ff_ntt_params(self, max_deg, char_override=None):
+        return _ntt.NTTParameters.build(2*(max_deg-1), char_override or self.coeff_ring.characteristic())
+
+
 
     def __elemmul__(self, other: object) -> object:
         if self.ring.ring.__class__.__name__ == 'QuotientRing' and self.ring.ring.ring == _integer_ring.ZZ and self.degree() > _should_kronecker(self.ring.characteristic()):
@@ -1682,8 +1740,6 @@ class Polynomial(RingElement):
 
         else:
             # FFT conv
-            from samson.math.fft.gss import _convolution
-
             self_powers  = list(self.coeffs.values.keys())
             other_powers = list(other.coeffs.values.keys())
 
@@ -1711,8 +1767,30 @@ class Polynomial(RingElement):
             small_other = small_other >> other_smallest_pow
 
 
-            # Convolve and reconstruct
-            poly = self._create_poly(_convolution(list(small_self), list(small_other))) << (self_smallest_pow+other_smallest_pow)
+            # If coefficients are in smallish finite field, use NTT
+            if RUNTIME.poly_ntt_heuristic(small_self, small_other):
+                # Build cache-friendly params
+                d    = max(small_self.degree(), small_other.degree())
+                d    = 2**(d.bit_length())
+                ntt  = self._ff_ntt_params(d, small_self.coeff_ring.characteristic() or max([abs(a) for a in (list(small_self) + list(small_other))]))
+
+                an   = ntt.fft(small_self.change_ring(_integer_ring.ZZ))
+                bn   = ntt.fft(small_other.change_ring(_integer_ring.ZZ))
+                cn   = an*bn
+                poly = cn.ifft().change_ring(self.coeff_ring)
+
+                # Handle negatives in ZZ
+                if self.coeff_ring == _integer_ring.ZZ:
+                    p    = ntt.R.characteristic()
+                    poly = poly.map_coeffs(lambda idx, c: (idx, c if c < p // 2 else -(p-c)))
+
+            else:
+                # Convolve and reconstruct
+                poly = self._create_poly(_gss._convolution(list(small_self), list(small_other)))
+
+
+            # Add degree shifts back in
+            poly <<= (self_smallest_pow+other_smallest_pow)
 
             if denom > 1:
                 poly.coeffs = poly.coeffs.map(lambda idx, val: (idx*denom, val))
@@ -1862,6 +1940,6 @@ class Polynomial(RingElement):
         s = h.degree()
         r = self.degree() // s
         A = Matrix([[(h**j)[i*s] for j in range(r+1)] for i in range(r+1)])
-        a = Matrix([[f[i*s] for i in range(r+1)]])
+        a = Matrix([[self[i*s] for i in range(r+1)]])
         g = A.LUsolve(a.T)
         return self.ring(list(g.T[0]))

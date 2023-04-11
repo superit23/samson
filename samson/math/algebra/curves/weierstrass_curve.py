@@ -1743,7 +1743,7 @@ class WeierstrassCurve(Ring):
 
         Returns:
             Tuple[WeierstrassCurve, WeierstrassPoint]: The constructed curve and a generator of the subgroup.
-    
+
         Examples:
             >>> from samson.math.algebra.curves.weierstrass_curve import EllipticCurve
             >>> E, g = EllipticCurve.generate_curve_with_k_embedding_subgroup(80, 12)
@@ -1763,7 +1763,7 @@ class WeierstrassCurve(Ring):
         start = 2**((bits // c.degree() // 2)-3)
 
         # This is just to add some randomness
-        l = start - random_int(bits*2)
+        l = int(max(start - random_int(bits*2), 1))
 
         # There's not a super good way to estimate when increasing evaluations of the poly
         # will no longer be within our range.

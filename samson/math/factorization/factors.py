@@ -259,8 +259,17 @@ class Factors(BaseObject):
 
     def gcd(self, other: 'Factors') -> 'Factors':
         result = Factors()
-        for k,v in self.factors.items():
-            if k in other:
-                result[k] = min(other.factors[k], v)
-        
-        return result
+        if type(other) is Factors:
+            for k,v in self.factors.items():
+                if k in other:
+                    result[k] = min(other.factors[k], v)
+            
+            return result
+        else:
+            from samson.math.factorization.general import trial_division
+            keys = list(self.keys())
+            if -1 in keys:
+                keys.remove(-1)
+
+            other = trial_division(other, prime_base=keys)
+            return self.gcd(other)

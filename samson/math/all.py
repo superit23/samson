@@ -8,5 +8,6 @@ from .map import Map
 from .matrix import Matrix
 from .polynomial import Polynomial
 from .prime_gen import PrimeEngine
+from .snfs import snfs
 from .sparse_vector import SparseVector
 from .symbols import oo, Symbol

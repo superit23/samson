@@ -93,11 +93,11 @@ class EndomorphismRing(Ring):
 
 
     def characteristic(self) -> int:
-        return NotImplementedError
+        raise NotImplementedError
 
 
     def order(self) -> int:
-        return NotImplementedError
+        raise NotImplementedError
 
 
     def __hash__(self) -> int:

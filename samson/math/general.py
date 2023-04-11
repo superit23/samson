@@ -1103,9 +1103,11 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
     n = A.num_rows
     m = A.num_cols
     R = A.coeff_ring
+    l = min(n,m)
 
     # Forward elimination
-    for i in range(n):
+    # for i in range(n):
+    for i in range(l):
         # Find pivot
         k = max(range(i, n), key=lambda r: max(A[r][i], -A[r][i]))
 
@@ -1117,15 +1119,18 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
 
         # Reduce rows
         scalar = ~A[i, i]
-        for j in range(i+1, n):
+        # for j in range(i+1, n):
+        for j in range(i+1, l):
             A[j] = [A[j, k] - A[i, k] * A[j, i] * scalar for k in range(m)]
 
 
     # Back substitution
     # This works with any size matrix
     rhs_cols = m - rhs.num_cols
-    for i in reversed(range(n)):
-        for j in range(i + 1, n):
+    # for i in reversed(range(n)):
+    for i in reversed(range(l)):
+        # for j in range(i + 1, n):
+        for j in range(i + 1, l):
             t = A[i, j]
             for k in range(rhs_cols, m):
                 A[i, k] -= t*A[j, k]
@@ -3475,3 +3480,158 @@ def four_squares(n: int) -> Tuple[int, int, int, int]:
         else:
             res = four_squares(n // 4)
             return [r*2 for r in res]
+
+
+def fibonacci_number(n :int) -> int:
+    if n < 0:
+        return (1 - 2*((n-1) % 2))*fibonacci_number(-n)
+
+    ZZ =_integer_ring.ZZ
+    A  = _mat.Matrix([[ZZ(1), ZZ(1)], [ZZ(1), ZZ(0)]])
+    return int((A**n)[0, 1])
+
+
+def lucas_number(n :int) -> int:
+    if not n:
+        return 2
+    return fibonacci_number(n-1) + fibonacci_number(n+1)
+
+
+def fibonacci_polynomial(n: int) -> "Polynomial":
+    """
+    References:
+        https://en.wikipedia.org/wiki/Fibonacci_polynomials
+        https://www.nayuki.io/page/fast-fibonacci-algorithms
+    """
+    if n < 0:
+        return (1 - 2*((n-1) % 2))*fibonacci_polynomial(-n)
+
+    ZZ =_integer_ring.ZZ
+    x  = _symbols.Symbol('x')
+    P  = ZZ[x]
+    
+    A = _mat.Matrix([[P(x), P(1)], [P(1), P(0)]])
+    return (A**n)[0, 1]
+
+
+
+def lucas_polynomial(n: int) -> "Polynomial":
+    """
+    References:
+        https://en.wikipedia.org/wiki/Fibonacci_polynomials
+    """
+    return fibonacci_polynomial(2*n) // fibonacci_polynomial(n)
+
+
+
+FIB_TABLE = {0: 0,
+ 1: 2,
+ 2: 3,
+ 3: 4,
+ 5: 5,
+ 8: 6,
+ 13: 7,
+ 21: 8,
+ 34: 9,
+ 55: 10,
+ 89: 11,
+ 144: 12,
+ 233: 13,
+ 377: 14,
+ 610: 15,
+ 987: 16,
+ 1597: 17,
+ 2584: 18,
+ 4181: 19,
+ 6765: 20,
+ 10946: 21,
+ 17711: 22,
+ 28657: 23,
+ 46368: 24,
+ 75025: 25,
+ 121393: 26,
+ 196418: 27,
+ 317811: 28,
+ 514229: 29}
+
+
+def estimate_fibonacci_index(n: int) -> int:
+    """
+    Estimates index of `n` as a Fibonacci number.
+
+    Parameters:
+        n (int): Fibonacci number.
+
+    Returns:
+        int: Estimated index of Fibonacci number. Empirically tested to be accurate to at least 50e6.
+        However, the error increases very slowly, so this number is probably much higher (20e6 -> 0.3286061, 30e6 -> 0.329047117, 50e6 -> 0.32992916).
+        A naive calculation of the estimated error shows that this function should be accurate up to ~1.55e9.
+
+    Example:
+        >>> for test_range in [range(3, 50000), range(50000, 3000000, 100000), range(3000000, 9000000, 400000), range(9000000, 20000000, 1000000)]:
+        >>>     for j in test_range:
+        >>>         a = fibonacci_number(j)
+        >>>         b = estimate_fibonacci_index(a)
+        >>>         assert b == j
+
+    """
+    b = n.bit_length()
+
+    if n in FIB_TABLE:
+        return FIB_TABLE[n]
+
+
+    if b < 39:
+        return math.floor(math.log2(n)/0.67 + 0.65)
+
+    elif b < 937:
+        return math.ceil(math.log2(n)/0.6939 + 1)
+    
+    elif b < 19439:
+        return math.ceil(math.log2(n)/0.69425 + 1)
+    
+    elif b < 555394:
+        return math.ceil(math.log2(n)/0.694241856 + 1)
+
+    # log2 of the golden ratio
+    return math.ceil(math.log2(n)/0.6942419136 + 1)
+
+
+
+def find_fibonacci_index(n :int, ensure_fib: bool=True) -> int:
+    """
+    References:
+        https://www.ritambhara.in/checking-if-a-number-is-fibonacci/#:~:text=Another%20method%20(Quick%20one)%20to,49%20which%20is%207*7
+    """
+    if ensure_fib and not detect_fibonacci(n):
+        raise ValueError(f'{n} is not a Fibonacci number')
+
+    i = estimate_fibonacci_index(n)
+
+    # This is our highest known good for the estimation function
+    if i < 50_000_000:
+        return i
+
+    # Note that fib(2) == 1, so we use this to detect mod 2
+    mod2 = 1-is_square(5*n**2+4)
+
+    initial_clamp = [1]
+
+    # Look for small divisors
+    for p in primes(3, 10):
+        if not n % fibonacci_number(p):
+            initial_clamp.append(p)
+
+    # Clamp `i` to found congruence
+    clamp    = product(initial_clamp)
+    r, clamp = crt([(0, clamp), (mod2, 2)])
+
+    i -= (i-r) % clamp
+
+    # Search downwards
+    a = fibonacci_number(i)
+    while a != n:
+        i -= clamp
+        a  = fibonacci_number(i)
+    
+    return i

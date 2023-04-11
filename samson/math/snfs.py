@@ -2,11 +2,12 @@ from samson.math.symbols import Symbol
 from samson.math.algebra.rings.integer_ring import ZZ
 from samson.math.general import kth_root, primes, int_to_poly, gcd, random_int_between, lcm
 from samson.utilities.exceptions import NoSolutionException
-from samson.math.factorization.general import factor, trial_division
+from samson.math.factorization.general import trial_division
 from samson.math.matrix import Matrix
 from samson.math.algebra.rings.order import Order
 from samson.core.base_object import BaseObject
 from functools import lru_cache
+import math
 
 x = Symbol('x')
 P = ZZ[x]
@@ -28,30 +29,52 @@ class SNFSDlogCache(BaseObject):
     def log(self, y):
         R, vY = find_smooth_representative(self.g, self.p, self.rfb, self.afb_l, self.d, y)
         vY    = -vY.change_ring(ZZ/ZZ(self.q))
+        print(self.A)
+        print(vY)
         X     = self.A.LUsolve(vY.T)
         x     = (-X[0][0] * self.S - R)
         return int(x)
 
+
+def compute_optimal_degree(n):
+    """
+    https://en.wikipedia.org/wiki/Special_number_field_sieve#Choice_of_parameters
+    """
+    return round((3*math.log2(n)/math.log2(math.log2(n)))**(1/3))
 
 
 def find_params(p, max_d=4000, max_r=30, max_sparsity=3):
     k = 1
     best_f = 0
     for d in primes(0, max_d):
-        q = kth_root(p, k*d)-1
-        if q < 2:
-            break
+        while True:
+            q = kth_root(p, k*d)-1
+            if q < 2:
+                break
 
-        f = int_to_poly(p, q).change_ring(ZZ)
-        if (max(f) < max_r and f.coeffs.sparsity <= max_sparsity and f.is_irreducible()):
-            k *= d
-            best_f = f
+            f = int_to_poly(p, q).change_ring(ZZ)
+            if (max(f) < max_r and f.coeffs.sparsity <= max_sparsity and f.is_irreducible()):
+                k *= d
+                best_f = f
+            else:
+                break
 
-    if best_f.coeffs.sparsity > max_sparsity:
+    if not best_f or best_f.coeffs.sparsity > max_sparsity:
         raise NoSolutionException
 
     m = kth_root(p, k)-1
     return best_f, best_f.symbol - m, m
+
+
+# def find_params(p, max_d=4000, max_r=30, max_sparsity=3):
+#     # Shoot for optimal
+#     opt_d = compute_optimal_degree(p)
+#     q = kth_root(p, opt_d)-1
+#     f = int_to_poly(p, q).change_ring(ZZ)
+
+#     if (max(f) < max_r and f.coeffs.sparsity <= max_sparsity and f.is_irreducible()):
+#         return f, f.symbol - q, q
+
 
 
 def create_rational_factor_bases(B, m):
@@ -83,13 +106,13 @@ def compute_schirokauermap_exp(f, q):
 
 def create_vector3(a, b, f, q, sigma, d):
     R   = ZZ/ZZ(q**2)
-    m   = Matrix([[a, -f[0]*b], [b, a-b]], R)
+    m   = Matrix([[a, -f[0]*b], [b, a-b]], R) # TODO: This only works with d=2!
     sm  = (m**sigma) * Matrix([[1,0]], R).T - Matrix([[1,0]], R).T
     res = []
+
     for i in range(d):
         res.append(int(sm[i][0]) // q)
     return res
-
 
 
 def create_rat_exp_vec(x, prime_base, facs):
@@ -182,9 +205,9 @@ def find_smooth_representative(g, p, rfb, afb_l, d, mul_mod):
 
 
 
-def snfs(p, q, g, y, max_d, B):
+def snfs(p, q, g, y, B):
     # Find parameters and build factor bases
-    f1, f2, m = find_params(p, max_d=max_d)
+    f1, f2, m = find_params(p)
     d         = f1.degree()
     rfb       = RationalFactorBase.create(B, m)
     afb       = AlgebraicFactorBase.create(f1, B, d)

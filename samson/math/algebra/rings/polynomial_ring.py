@@ -1,11 +1,13 @@
-from samson.math.algebra.rings.ring import RingElement
-from samson.math.algebra.rings.ring import Ring
+from samson.math.algebra.rings.ring import RingElement, Ring
 from samson.utilities.exceptions import CoercionException
 from samson.math.polynomial import Polynomial
 from samson.math.symbols import Symbol, oo
-from samson.math.general import random_int, is_prime
+from samson.math.general import random_int, is_prime, random_int_between, next_prime, int_to_poly
 from samson.math.factorization.general import factor
 import math
+
+from samson.auxiliary.lazy_loader import LazyLoader
+_integer_ring  = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
 
 
 class PolynomialRing(Ring):
@@ -148,6 +150,31 @@ class PolynomialRing(Ring):
         return self.symbol
 
 
+    def _find_irred_ZZ(self, n, elem_size, sparsity=None):
+        """
+        References:
+            https://en.wikipedia.org/wiki/Cohn%27s_irreducibility_criterion
+        """
+        sparsity = max(sparsity or 2, 1)
+        r = elem_size**(random_int(sparsity-1))*random_int_between(1, elem_size-1)
+        p = next_prime(elem_size**n+r)
+
+        while True:
+            q = int_to_poly(p, elem_size)
+
+            if q.coeffs.sparsity <= sparsity:
+                q = q.change_ring(_integer_ring.ZZ)
+                q.is_irreducible.user_cache[q] = True
+                return q
+            
+            p = next_prime(p+1)
+            if p >= elem_size**n:
+                sparsity += 1
+                r = elem_size**(random_int(sparsity-1))*random_int_between(1,elem_size-1)
+                p = next_prime(elem_size**n+r)
+
+
+
     def find_irreducible_poly(self, n: int, sparsity: int=None, elem_size: RingElement=None) -> Polynomial:
         """
         Finds a sparse, irreducible polynomial. Uses as many unit values as possible.
@@ -160,6 +187,9 @@ class PolynomialRing(Ring):
         Returns:
             Polynomial: Irreducible polynomial
         """
+        if self.ring == _integer_ring.ZZ:
+            return self._find_irred_ZZ(n=n, sparsity=sparsity, elem_size=elem_size)
+
         logn = math.ceil(math.log(n, 2))
         sparsity = max(sparsity or logn-2, 1)
         x = self.symbol

@@ -294,6 +294,42 @@ def _pk1_factor(p, k):
     return sum([factor(int(f(p)), max_factor_size=p.bit_length()) for f in (x**int(k)-1)._xk1_factor()], Factors())
 
 
+
+def _fib_factor(n: int, visual: bool=False):
+    k = _samson_math.estimate_fibonacci_index(n)
+    factor_cache = {}
+
+
+    def subfactor(div):
+        if div in factor_cache:
+            return factor_cache[div]
+
+        fib_div = _samson_math.fibonacci_number(div.recombine())
+        result  = Factors()
+
+        for d in sorted(div.divisors(False))[1:-1]:
+            facs   = subfactor(d)
+            result += facs
+
+
+        result    = result.gcd(fib_div)
+        fib_div //= result.recombine()
+        result   += factor(fib_div, visual=visual)
+
+        # Clean up 1's
+        if 1 in result:
+            del result.factors[1]
+
+        factor_cache[div] = result
+
+        return result
+
+
+    result = subfactor(factor(k))
+    return result
+
+
+
 def _modular_lucas(v: int, a: int, n: int) -> int:
     """
     Internal use. Multiplies along a Lucas sequence modulo n.
@@ -729,6 +765,14 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
                 log.info("p^k-1 detected; using cyclotomic factorization")
 
             return _pk1_factor(p, k)
+
+
+        # Check if Fibonacci number
+        if _samson_math.fibonacci_number(_samson_math.estimate_fibonacci_index(n)) == n:
+            if visual:
+                log.info("Fibonacci number detected; using optimized subroutine")
+
+            return _fib_factor(n, visual=visual)
 
 
         if use_trial:

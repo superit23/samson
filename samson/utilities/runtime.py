@@ -11,6 +11,9 @@ import inspect
 import sys
 import os
 
+from samson.auxiliary.lazy_loader import LazyLoader
+_integer_ring = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
+
 
 URANDOM = open("/dev/urandom", "rb")
 
@@ -24,6 +27,10 @@ def default_poly_fft_heuristic(p1, p2):
     n    = 2**logn
 
     return p1.coeffs.sparsity * p2.coeffs.sparsity > 10*(3*n*logn+n)
+
+
+def default_ntt_heuristic(p1, p2):
+    return max(p1.degree(), p2.degree()) > 7 and (p1.coeff_ring.is_field() and (1 < p1.coeff_ring.characteristic().bit_length() < 768)) or p1.coeff_ring == _integer_ring.ZZ
 
 
 class RuntimeConfiguration(object):
@@ -70,6 +77,7 @@ class RuntimeConfiguration(object):
         self.random = lambda size: URANDOM.read(size)
         self.poly_fft_heuristic = default_poly_fft_heuristic
         self.poly_exp_separator = "^"
+        self.poly_ntt_heuristic = default_ntt_heuristic
 
         if minimize_output:
             self.default_short_printer = lambda elem: elem.tinyhand()
@@ -417,24 +425,42 @@ class RuntimeConfiguration(object):
         return _outer_wrap
 
 
-
-    def global_cache(self, size: int=None):
+    def global_cache(self, size: int=None, enable_user_cache: bool=False, user_cache_selector: FunctionType=None):
         """
         Wraps a function with a LRU cache of size `size`.
         """
         def _outer_wrap(func):
             cache = lru_cache(size or self.global_cache_size)(func)
 
+            if enable_user_cache:
+                if not user_cache_selector:
+                    raise ValueError("User cache enabled but no selector function supplied")
+
+                cache.user_cache = {}
+                cache.user_cache_selector = user_cache_selector
+
             @wraps(func)
             def _inner_wrap(*args, **kwargs):
+                if enable_user_cache:
+                    try:
+                        return cache.user_cache[cache.user_cache_selector(*args, **kwargs)]
+                    except KeyError:
+                        pass
+
+
                 if self.global_cache_enabled:
                     return cache(*args, **kwargs)
                 else:
                     return func(*args, **kwargs)
-            
+
             _inner_wrap.cache_clear = cache.cache_clear
             _inner_wrap.cache_info  = cache.cache_info
-            
+
+            if enable_user_cache:
+                _inner_wrap.user_cache  = cache.user_cache
+                _inner_wrap.user_cache_selector = cache.user_cache_selector
+
+
             return _inner_wrap
 
         return _outer_wrap
