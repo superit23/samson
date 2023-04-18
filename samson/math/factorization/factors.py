@@ -90,6 +90,10 @@ class Factors(BaseObject):
 
 
     def __add__(self, other: dict) -> 'Factors':
+        if type(other) not in (dict, Factors):
+            from samson.math.factorization.general import factor
+            other = factor(other)
+
         new_facs = Factors()
         for key in self:
             new_facs.add(key, self[key])

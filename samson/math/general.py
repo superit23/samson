@@ -361,6 +361,9 @@ def mod_inv(a: 'RingElement', n: 'RingElement') -> 'RingElement':
         https://en.wikipedia.org/wiki/Euclidean_algorithm#Linear_Diophantine_equations
         https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
     """
+    if hasattr(a, 'mod_inv'):
+        return a.mod_inv(n)
+
     ZZ = _integer_ring.ZZ
 
     # For convenience
@@ -1498,7 +1501,7 @@ def primes(start: int, stop: int=None) -> list:
         p += 2
 
 
-def berlekamp_massey(output_list: List[int]) -> 'Polynomial':
+def _berlekamp_massey_gf2(output_list: List[int]) -> 'Polynomial':
     """
     Performs the Berlekamp-Massey algorithm to find the shortest LFSR for a binary output sequence.
 
@@ -1556,6 +1559,63 @@ def berlekamp_massey(output_list: List[int]) -> 'Polynomial':
         i += 1
 
     return Polynomial(c[:L + 1][::-1], coeff_ring=ZZ/ZZ(2))
+
+
+
+
+def berlekamp_massey(output_list: List[int], F: 'Ring'=None):
+    """
+    Performs the Berlekamp-Massey algorithm to find the shortest linear recurrence.
+
+    Parameters:
+        output_list (List[int]): Output of recurrence.
+
+    Returns:
+        Polynomial: Polyomial that represents the shortest linear recurrence.
+
+    Examples:
+        >>> from samson.prngs.flfsr import FLFSR
+        >>> from samson.math.general import berlekamp_massey
+        >>> from samson.math.all import Polynomial, ZZ
+        >>> from samson.math.symbols import Symbol
+        >>> x = Symbol('x')
+        >>> _ = (ZZ/ZZ(2))[x]
+        >>> lfsr = FLFSR(3, x**25 + x**20 + x**12 + x**8  + 1)
+        >>> outputs = [lfsr.generate() for _ in range(50)]
+        >>> berlekamp_massey(outputs)
+        <Polynomial: x^25 + x^17 + x^13 + x^5 + 1, coeff_ring=ZZ/(ZZ(2))>
+
+    References:
+        https://arxiv.org/pdf/2211.11721.pdf
+    """
+    ZZ = _integer_ring.ZZ
+    Symbol = _symbols.Symbol
+
+    if F == ZZ/ZZ(2):
+        return _berlekamp_massey_gf2(output_list)
+
+
+    x = Symbol('x')
+    P = F[x]
+
+    a = [F(o) for o in output_list]
+    n = len(a) // 2
+    m = 2*n - 1
+    R0 = x**(2*n)
+    R1 = P([a[m-i] for i in range(m+1)])
+    V0 = P.zero
+    V1 = P.one
+
+    while n <= R1.degree():
+        Q, R = divmod(R0, R1)
+        V = V0 - Q*V1
+        V0 = V1
+        V1 = V
+        R0 = R1
+        R1 = R
+    
+    return V1.monic()
+
 
 
 def is_power_of_two(n: int) -> bool:
@@ -3482,11 +3542,11 @@ def four_squares(n: int) -> Tuple[int, int, int, int]:
             return [r*2 for r in res]
 
 
-def fibonacci_number(n :int) -> int:
+def fibonacci_number(n: int, R: 'Ring'=None) -> int:
     if n < 0:
         return (1 - 2*((n-1) % 2))*fibonacci_number(-n)
 
-    ZZ =_integer_ring.ZZ
+    ZZ = R or _integer_ring.ZZ
     A  = _mat.Matrix([[ZZ(1), ZZ(1)], [ZZ(1), ZZ(0)]])
     return int((A**n)[0, 1])
 

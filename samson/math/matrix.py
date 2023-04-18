@@ -282,6 +282,16 @@ class Matrix(RingElement):
     det = determinant
 
 
+    def adjugate(self):
+        assert self.is_square()
+        if self.num_rows == 2:
+            return Matrix([[self[1,1], -self[0,1]], [-self[1,0], self[0,0]]])
+
+        return (Matrix.identity(self.num_rows, self.coeff_ring)*self.det())/self
+
+
+    adj = adjugate
+
 
     def trace(self) -> 'RingElement':
         if not self.is_square():

@@ -1,4 +1,4 @@
-from samson.utilities.exceptions import NoSolutionException
+from samson.utilities.exceptions import NoSolutionException, NotInvertibleException
 from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.general import square_and_mul, gcd, kth_root, coppersmiths, product, cyclotomic_polynomial, next_prime
 from samson.math.factorization.general import factor as factor_int, pk_1_smallest_divisor
@@ -9,13 +9,14 @@ from samson.math.fft.karatsuba import karatsuba
 from samson.utilities.general import add_or_increment
 from samson.utilities.manipulation import get_blocks
 from samson.utilities.runtime import RUNTIME
-from copy import copy
+from copy import deepcopy
 from types import FunctionType
 import itertools
 
 from samson.auxiliary.lazy_loader import LazyLoader
 _integer_ring  = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
 _symbol        = LazyLoader('_symbol', globals(), 'samson.math.symbols')
+_matrix        = LazyLoader('_matrix', globals(), 'samson.math.matrix')
 _gss           = LazyLoader('_gss', globals(), 'samson.math.fft.gss')
 _ntt           = LazyLoader('_ntt', globals(), 'samson.math.fft.ntt')
 
@@ -254,7 +255,7 @@ class Polynomial(RingElement):
             # We need this for composition in multivariate polynomials
             if hasattr(val, "ring") and val.ring.is_superstructure_of(self.ring):
                 total  = val.ring.zero
-                coeffs = copy(coeffs)
+                coeffs = deepcopy(coeffs)
 
                 for k,v in coeffs.values.items():
                     coeffs.values[k] = val.ring(v)
@@ -461,7 +462,7 @@ class Polynomial(RingElement):
         References:
             https://en.wikipedia.org/wiki/Companion_matrix
         """
-        from samson.math.matrix import Matrix
+        Matrix = _matrix.Matrix
 
         d = self.degree()-1
         R = self.coeff_ring
@@ -1876,18 +1877,114 @@ class Polynomial(RingElement):
         return self != self.ring.zero and all([coeff.is_invertible() for _, coeff in self.coeffs])
 
 
+    def _half_gcd(self, other):
+        """
+        References:
+            https://github.com/cp-algorithms/cp-algorithms-aux/blob/master/src/polynomial.cpp
+            https://www.csd.uwo.ca/~mmorenom/CS424/Lectures/FastDivisionAndGcd.html/node6.html
+        """
+        Matrix = _matrix.Matrix
+        A,B = self, other
+
+        assert A.degree() >= B.degree()
+        m = (A.degree() + 1) // 2
+
+        if(B.degree() < m or not B.degree()):
+            return ([], Matrix([[1, 0], [0, 1]], A.ring))
+
+
+        def apply(M, A, B):
+            a,b,c,d = M[0,0],M[0,1],M[1,0],M[1,1]
+            return a*A + b*B, c*A + d*B
+
+
+        ar, Tr = A[m:]._half_gcd(B[m:])
+        A, B   = apply(Tr.adj(), A, B)
+
+        if(B.degree() < m or not B.degree()):
+            return (ar, Tr)
+
+        ai, R = divmod(A, B)
+        A, B = B, R
+        k = 2 * m - B.degree()
+        ass, Ts = A[k:]._half_gcd(B[k:])
+
+        ar.append(ai)
+        ar.extend(ass)
+        return (ar, Tr * Matrix([[ai, A.ring.one], [A.ring.one, A.ring.zero]]) * Ts)
+
+
+    def _full_gcd(self, other):
+        Matrix = _matrix.Matrix
+        A,B = self, other
+        ak  = []
+        trs = []
+
+
+        def apply(M, A, B):
+            a,b,c,d = M[0,0],M[0,1],M[1,0],M[1,1]
+            return a*A + b*B, c*A + d*B
+
+
+        while(B):
+            if(2 * B.degree() > A.degree()):
+                a, Tr = A._half_gcd(B)
+                ak.extend(a)
+                trs.append(Tr)
+                A,B = apply(trs[-1].adj(), A, B)
+            else:
+                a, R = divmod(A, B)
+                ak.append(a)
+                trs.append(Matrix([[a, A.ring.one], [A.ring.one, A.ring.zero]]))
+                A,B = B,R
+
+
+        trs.append(Matrix([[1, 0], [0, 1]], A.ring))
+
+        while(len(trs) >= 2):
+            trs[-2] *= trs[-1]
+            trs = trs[:-1]
+
+        return (ak, trs[-1])
+
+
+    def _fast_gcd(self, other):
+        # Faster than generic gcd at ~deg 511, char 2^30; is actually worse after char 2^30
+        a,b = self, other
+        if a.degree() < b.degree():
+            a,b = b,a
+
+        _,e = a._full_gcd(b)
+        return e[1,1]*a - e[0,1]*b
+
+
+    def _fast_inv_mod(self, other):
+        # Faster than inv_mod at ~deg 256; much faster at lower characteristic
+        a,b = self, other
+        _,e = b._full_gcd(a % b)
+        g   = e[1,1]*b - e[0,1]*a
+
+        if g.degree():
+            raise NotInvertibleException(f"Fast poly inverse mod: {a} not invertible over{b}", parameters={"a": a, "b": b, "e": e})
+
+        return -e[0,1] * ~g[0]
+
+
 
     def gcd(self, other: 'Polynomial', use_naive: bool=False) -> 'Polynomial':
         """
         References:
             https://math.stackexchange.com/a/2587365
         """
-        from samson.math.algebra.fields.fraction_field import FractionField
-
         # Euclidean division is only defined for polynomials over a field
         R = self.coeff_ring
         if R.is_field():
+            # Use Half-GCD method
+            if 1 < R.characteristic() < 2**30 and max(self.degree(), other.degree()) > 510:
+                return self._fast_gcd(other).monic()
+
             return super().gcd(other).monic()
+
 
         elif use_naive:
             # Assumes invertibility despite not being a field
@@ -1901,7 +1998,7 @@ class Polynomial(RingElement):
 
         else:
             # Embed ring into a fraction field
-            Q   = FractionField(R)
+            Q   = R.fraction_field()
             s_q = self.change_ring(Q)
             o_q = other.change_ring(Q)
 

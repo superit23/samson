@@ -148,10 +148,6 @@ class FiniteField(Field):
             if n == 1:
                 reducing_poly = Polynomial([0, 1], self.internal_ring)
 
-            elif p == 2:
-                from samson.auxiliary.gf2_irreducible_poly_db import build_gf2_irreducible_poly
-                reducing_poly = build_gf2_irreducible_poly(P, n)
-
             else:
                 reducing_poly = P.find_irreducible_poly(n)
 

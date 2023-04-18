@@ -12,11 +12,12 @@ _poly         = LazyLoader('_poly', globals(), 'samson.math.polynomial')
 def find_suitable_prime(X: list, Y: list, n=None) -> int:
     n = n or len(X)
     m = int(max(X + Y))**2*n
+    p = None
 
     if m.bit_length() > 260:
         p = PrimeEngine.GENS.SMOOTH_MULTI(m.bit_length()+1).generate()
-        assert (p-1) % n == 0
-    else:
+
+    if not p or (p-1) % n:
         for glue in sieve_of_eratosthenes_lazy(2**48):
             p = m*glue+1
             if is_prime(p):

@@ -330,6 +330,56 @@ def _fib_factor(n: int, visual: bool=False):
 
 
 
+def _lucas_factor(idx: int, visual: bool=False):
+    """
+    References:
+        https://oeis.org/A273622/a273622.pdf
+    """
+    factor_cache = {}
+
+
+    def subfactor(div):
+        if div in factor_cache:
+            return factor_cache[div]
+
+        # Lucas sequences only have odd divisibility
+        pow2     = 2**div.factors.get(2, 0)
+        odd_facs = div // pow2
+
+        luc_div = _samson_math.lucas_number(div.recombine())
+        result  = Factors()
+
+        for d in sorted(odd_facs.divisors(False))[1:-1]:
+            facs   = subfactor(d*pow2)
+            result += facs
+
+
+        result    = result.gcd(luc_div)
+        luc_div //= result.recombine()
+        result   += factor(luc_div, visual=visual)
+
+        # Clean up 1's
+        if 1 in result:
+            del result.factors[1]
+
+        factor_cache[div] = result
+
+        return result
+
+
+    result = subfactor(factor(idx))
+    return result
+
+
+# def _lucas_factor(idx: int):
+#     idx_facs = factor(idx)
+#     pow2     = 2**idx_facs[2]
+#     odd_facs = idx_facs // pow2
+
+#     for div in sorted(odd_facs.divisors()):
+#         div_facs = factor(lucas_number(pow2*div.recombine()))
+
+
 def _modular_lucas(v: int, a: int, n: int) -> int:
     """
     Internal use. Multiplies along a Lucas sequence modulo n.

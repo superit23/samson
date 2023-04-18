@@ -1,9 +1,10 @@
 from samson.math.algebra.rings.ring import RingElement, Ring
-from samson.utilities.exceptions import CoercionException
+from samson.utilities.exceptions import CoercionException, ProbabilisticFailureException
 from samson.math.polynomial import Polynomial
 from samson.math.symbols import Symbol, oo
 from samson.math.general import random_int, is_prime, random_int_between, next_prime, int_to_poly
 from samson.math.factorization.general import factor
+from samson.auxiliary.gf2_irreducible_poly_db import build_gf2_irreducible_poly
 import math
 
 from samson.auxiliary.lazy_loader import LazyLoader
@@ -190,6 +191,9 @@ class PolynomialRing(Ring):
         if self.ring == _integer_ring.ZZ:
             return self._find_irred_ZZ(n=n, sparsity=sparsity, elem_size=elem_size)
 
+        elif self.characteristic() == 2:
+            return build_gf2_irreducible_poly(self, n)
+
         logn = math.ceil(math.log(n, 2))
         sparsity = max(sparsity or logn-2, 1)
         x = self.symbol
@@ -215,6 +219,8 @@ class PolynomialRing(Ring):
                     return q
             
             sparsity += 1
+        
+        raise ProbabilisticFailureException
 
 
     def number_of_irreducible(self, n: int) -> int:
@@ -308,3 +314,42 @@ class PolynomialRing(Ring):
             result = [c.numerator for c in result]
 
         return self(result[::-1])
+
+
+
+    def binomial(self, n: int, y: 'RingElement'=None, d: int=1) -> 'Polynomial':
+        """
+        Calculates the powers of a binomial of the form `(x^d + y)^n`.
+
+        Parameters:
+            n (int): Power to raise to.
+            y (int): Constant coefficient.
+            d (int): Degree of the non-constant term.
+
+        Returns:
+            Polynomial: Binomial expansion of `(x^d + y)^n`.
+        """
+        R = self.ring
+        result = 1
+        coeffs = [R.one]
+        c = R(1)
+        y = R(y) if y else R.one
+
+        if y == R.one:
+            # Happy path, do half the work
+            for k in range(n // 2):
+                result  *= (n-k)
+                result //= (k+1)
+                c *= y
+                coeffs.append(R(result)*c)
+
+            coeffs = coeffs[::-1]
+            return self(coeffs[(n+1) % 2:][::-1] + coeffs).map_coeffs(lambda idx, c: (idx*d, c))
+        else:
+            for k in range(n):
+                result  *= (n-k)
+                result //= (k+1)
+                c *= y
+                coeffs.append(R(result)*c)
+
+            return self(coeffs[::-1]).map_coeffs(lambda idx, c: (idx*d, c))
