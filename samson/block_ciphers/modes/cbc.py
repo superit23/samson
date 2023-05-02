@@ -34,7 +34,7 @@ class CBC(BlockCipherMode):
         Parameters:
             plaintext (bytes): Bytes-like object to be encrypted.
             pad        (bool): Pads the plaintext with PKCS7.
-        
+
         Returns:
             Bytes: Resulting ciphertext.
         """
@@ -65,7 +65,7 @@ class CBC(BlockCipherMode):
         Parameters:
             ciphertext (bytes): Bytes-like object to be decrypted.
             unpad       (bool): Unpads the plaintext with PKCS7.
-        
+
         Returns:
             Bytes: Resulting plaintext.
         """

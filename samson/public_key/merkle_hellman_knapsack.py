@@ -64,7 +64,7 @@ class MerkleHellmanKnapsack(EncryptionAlg):
 
         Parameters:
             sums (list): List of ciphertext sums.
-        
+
         Returns:
             Bytes: Decrypted plaintext.
         """
@@ -98,7 +98,7 @@ class MerkleHellmanKnapsack(EncryptionAlg):
             ciphertext (int): A ciphertext sum.
             pub        (int): The public key.
             alpha      (int): Punishment coefficient for deviation from guessed bit distribution.
-        
+
         Returns:
             Bytes: Recovered plaintext.
         """

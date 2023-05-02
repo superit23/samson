@@ -25,7 +25,7 @@ class DaviesMeyerConstruction(BaseObject):
 
         Parameters:
             message (bytes): Message to be hashed.
-        
+
         Returns:
             generator: Intermediate, hashed states.
         """
@@ -44,7 +44,7 @@ class DaviesMeyerConstruction(BaseObject):
 
         Parameters:
             message (bytes): Message to be hashed.
-        
+
         Returns:
             Bytes: Fully-hashed state.
         """

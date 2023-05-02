@@ -1101,6 +1101,9 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
     """
     Matrix = _mat.Matrix
 
+    if system_matrix.num_rows != rhs.num_rows:
+        raise ValueError("Matrices must have the same number of rows")
+
     A = deepcopy(system_matrix).row_join(rhs)
 
     n = A.num_rows
@@ -1109,7 +1112,6 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
     l = min(n,m)
 
     # Forward elimination
-    # for i in range(n):
     for i in range(l):
         # Find pivot
         k = max(range(i, n), key=lambda r: max(A[r][i], -A[r][i]))
@@ -1122,7 +1124,6 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
 
         # Reduce rows
         scalar = ~A[i, i]
-        # for j in range(i+1, n):
         for j in range(i+1, l):
             A[j] = [A[j, k] - A[i, k] * A[j, i] * scalar for k in range(m)]
 
@@ -1130,9 +1131,8 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
     # Back substitution
     # This works with any size matrix
     rhs_cols = m - rhs.num_cols
-    # for i in reversed(range(n)):
+
     for i in reversed(range(l)):
-        # for j in range(i + 1, n):
         for j in range(i + 1, l):
             t = A[i, j]
             for k in range(rhs_cols, m):
@@ -1146,7 +1146,13 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
         for j in range(rhs_cols, m):
             A[i, j] *= t
 
-    return Matrix(A[:, rhs_cols:m], coeff_ring=R, ring=A.ring)
+    result = Matrix(A[:system_matrix.num_cols, rhs_cols:m], coeff_ring=R, ring=A.ring)
+
+    # Handles non-square matrices like 2x4 * 4x4 = 2x4
+    if result.num_rows < system_matrix.num_cols:
+        result = result.col_join(Matrix.fill(R.zero, system_matrix.num_cols-result.num_rows, rhs.num_cols))
+
+    return result
 
 
 @add_complexity(KnownComplexities.GRAM)
@@ -1257,8 +1263,7 @@ def lll(in_basis: 'Matrix', delta: float=0.75) -> 'Matrix':
 
     # Prepare ring and basis
     if type(in_basis.coeff_ring).__name__ != 'FractionField':
-        from samson.math.algebra.fields.fraction_field import FractionField
-        R = FractionField(in_basis.coeff_ring)
+        R = in_basis.coeff_ring.fraction_field()
         in_basis = Matrix([[R(elem) for elem in row] for row in in_basis.rows], coeff_ring=R)
 
     R     = in_basis.coeff_ring
@@ -1309,7 +1314,7 @@ def lll(in_basis: 'Matrix', delta: float=0.75) -> 'Matrix':
 
             k = max(k-1, 1)
 
-    return basis
+    return basis, ortho
 
 
 def generate_superincreasing_seq(length: int, max_diff: int, starting: int=0) -> List[int]:

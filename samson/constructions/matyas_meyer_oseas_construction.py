@@ -25,7 +25,7 @@ class MatyasMeyerOseasConstruction(BaseObject):
 
         Parameters:
             message (bytes): Message to be hashed.
-        
+
         Returns:
             Bytes: Intermediate, hashed states.
         """

@@ -31,6 +31,9 @@ class FeistelNetwork(BaseObject):
         Returns:
             generator: Resulting intermediate ciphertext.
         """
+        if len(plaintext) % 2:
+            raise ValueError("Plaintext length must be even")
+
         half = len(plaintext) // 2
         plaintext = Bytes.wrap(plaintext)
         L_i, R_i  = plaintext[:half], plaintext[half:]
@@ -54,6 +57,9 @@ class FeistelNetwork(BaseObject):
         Returns:
             generator: Resulting intermediate plaintext.
         """
+        if len(ciphertext) % 2:
+            raise ValueError("Ciphertext length must be even")
+
         half = len(ciphertext) // 2
         ciphertext = Bytes.wrap(ciphertext)
         R_i, L_i   = ciphertext[:half], ciphertext[half:]
@@ -73,7 +79,7 @@ class FeistelNetwork(BaseObject):
         Parameters:
             key       (bytes): Bytes-like object to key the cipher.
             plaintext (bytes): Bytes-like object to be encrypted.
-        
+
         Returns:
             Bytes: Resulting ciphertext.
         """
@@ -86,9 +92,9 @@ class FeistelNetwork(BaseObject):
         Decrypts `ciphertext` by yielding the final state of the Feistel network.
 
         Parameters:
-        key       (bytes): Bytes-like object to key the cipher.
+            key        (bytes): Bytes-like object to key the cipher.
             ciphertext (bytes): Bytes-like object to be decrypted.
-        
+
         Returns:
             Bytes: Resulting plaintext.
         """

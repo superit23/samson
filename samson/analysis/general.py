@@ -1,5 +1,5 @@
 from math import sqrt, pi, log2, e
-from samson.math.general import random_int, lcm, ceil, log1p, log, _integer_ring
+from samson.math.general import random_int, lcm, ceil, log1p, log, _integer_ring, _real_field
 from tqdm import tqdm
 import operator as _operator
 import json
@@ -103,6 +103,14 @@ def hamming_weight(n: int):
     return bin(n).count('1')
 
 
+
+def parity(n: int):
+    for i in reversed(range(n.bit_length().bit_length())):
+        n ^= n >> (2**i)
+    return n & 1
+
+
+
 def count_items(items: list) -> dict:
     """
     Counts the items in an enumerable object.
@@ -187,13 +195,14 @@ def find_repeating_key_size(ciphertext: bytes, key_range: list) -> list:
 
 
 
-def birthday_attack_analysis(bits: int, probability: float) -> float:
+def birthday_attack_analysis(bits: int, probability: float, prec: int=None) -> float:
     """
     Determines the average number of attempts before a collision occurs against `bits` with `probability`.
 
     Parameters:
         bits          (int): Number of bits in the keyspace.
         probability (float): Target probability.
+        prec          (int): Desired precision. Will be calculated automatically if not specified.
 
     Returns:
         float: Average number of attempts before collision.
@@ -201,16 +210,18 @@ def birthday_attack_analysis(bits: int, probability: float) -> float:
     References:
         https://en.wikipedia.org/wiki/Birthday_attack#Mathematics
     """
-    return sqrt(2 * 2**bits * -log1p(-probability))
+    RealField = _real_field.RealField
+    RR = RealField(prec or (bits // 2 + 7))
+    return (RR(2 * 2**bits) * RR(-RR(-probability).log1p())).sqrt()
 
 
-EULER_MASCHERONI_CONSTANT = 0.5772156649015329
-def coupon_collector_analysis(n: int) -> (float, float):
+def coupon_collector_analysis(n: int, prec: int=None) -> (float, float):
     """
     Determines the average number of attempts to collect all `n` items from a pseudorandom function.
 
     Parameters:
-        n (int): Number of items.
+        n    (int): Number of items.
+        prec (int): Desired precision. Will be calculated automatically if not specified.
 
     Returns:
         (float, float): Tuple formatted as (average_number, standard_deviation).
@@ -218,9 +229,30 @@ def coupon_collector_analysis(n: int) -> (float, float):
     References:
         https://brilliant.org/wiki/coupon-collector-problem/
     """
-    average_number     = n * (log(n, e) + EULER_MASCHERONI_CONSTANT) + 0.5
-    standard_deviation = sqrt((pi**2 * n**2) / 6 - n * (log(n, e) + EULER_MASCHERONI_CONSTANT) - 0.5)
+    RealField = _real_field.RealField
+    RR = RealField(prec or (n.bit_length() + n.bit_length().bit_length() + 3))
+
+    average_number     = n * (RR(n).ln() + RR.euler) + 0.5
+    standard_deviation = ((RR.pi**2 * n**2) / 6 - average_number - 1).sqrt()
     return (average_number, standard_deviation)
+
+
+def approximate_ncr(n: int, r: int, prec: int=100) -> int:
+    """
+    `n` choose `r`.
+
+    Parameters:
+        n    (int): Number to choose from.
+        r    (int): Number of those to choose.
+        prec (int): Desired precision.
+
+    Returns:
+        int: Number of elements in nCr.
+    """
+    RealField = _real_field.RealField
+    RR = RealField(prec)
+
+    return RR(RR.ctx.factorial(n)/(RR.ctx.factorial(r)*RR.ctx.factorial(n-r)))
 
 
 def ncr(n: int, r: int) -> int:
@@ -296,7 +328,7 @@ def probability_of_at_least_x_occurences(n: int, x: int, p: float) -> float:
     return sum(probability_of_x_occurences(n, k, p) for k in range(x, n))
 
 
-def number_of_attempts_to_reach_probability(p: float, desired_prob: float) -> int:
+def number_of_attempts_to_reach_probability(p: float, desired_prob: float, prec: int=None) -> int:
     """
     Calculates the minimum number of attempts of an event with probability `p` to occur with `desired_prob` probability.
 
@@ -316,7 +348,17 @@ def number_of_attempts_to_reach_probability(p: float, desired_prob: float) -> in
         (69, True)
 
     """
-    return ceil(log1p(-desired_prob)/log1p(-p))
+    RealField = _real_field.RealField
+    if type(p) is float:
+        RR200 = RealField(200)
+        n = 1/RR200(p)
+    else:
+        n = 1/p
+
+    n  = int((n).log(2).ceil())
+    RR = RealField(prec or (n + 5))
+
+    return (RR(-desired_prob).log1p()/RR(-p).log1p()).ceil()
 
 
 def __float_to_discrete_probability(p: float):
@@ -377,7 +419,24 @@ def simulate_until_event(p: float, runs: int, visual: bool=False) -> float:
     return total / runs
 
 
-def approximate_n_bit_permutations(n: int) -> float:
+def approximate_n_bit_permutations(n: int, prec: int=None) -> float:
+    """
+    Approximates the number of `n`-bit permutations.
+
+    Parameters:
+        x    (int): Size of permutation in bits.
+        prec (int): Desired precision. Will be calculated automatically if not specified.
+
+    Returns:
+        float: Exponent of number of permutations with base 2.
+    """
+    RealField = _real_field.RealField
+    RR = RealField(prec or (n + n.bit_length() + n.bit_length().bit_length()))
+    return RR(RR.ctx.factorial(2**n)).log(2)
+
+
+
+def _approximate_n_bit_permutations(n: int) -> float:
     """
     Approximates the number of `n`-bit permutations.
 

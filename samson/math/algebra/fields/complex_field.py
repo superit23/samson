@@ -48,7 +48,7 @@ class ComplexElement(RealElement):
 class ComplexField(RealField):
 
     def shorthand(self) -> str:
-        return 'CC'
+        return f'CC{self.prec}'
 
 
     def coerce(self, other: object) -> ComplexElement:

@@ -103,6 +103,10 @@ class RealElement(FieldElement):
         return self.field(self.field.ctx.exp(self.val))
 
 
+    def ln(self) -> 'RealElement':
+        return self.field(self.field.ctx.ln(self.val))
+
+
     def ceil(self) -> 'RealElement':
         return self.field(self.field.ctx.ceil(self.val))
 
@@ -178,6 +182,10 @@ class RealField(Field):
     def e(self):
         return self(self.ctx.e)
 
+    @property
+    def euler(self):
+        return self(self.ctx.euler)
+
 
     @property
     def pi(self):
@@ -224,7 +232,7 @@ class RealField(Field):
 
 
     def shorthand(self) -> str:
-        return 'RR'
+        return f'RR{self.prec}'
 
 
     def coerce(self, other: object) -> RealElement:

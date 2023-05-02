@@ -44,7 +44,7 @@ class HKDF(KDF):
 
         new_key = b''
         t       = b''
-        for i in range(math.ceil(self.desired_len / (self.hash_obj.digest_size // 8))):
+        for i in range(math.ceil(self.desired_len / (self.hash_obj.digest_size))):
             t        = hmac.generate(t + info + bytes([i + 1]))
             new_key += t
 

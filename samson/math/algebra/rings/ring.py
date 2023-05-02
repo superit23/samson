@@ -170,7 +170,21 @@ class Ring(BaseObject):
 
 
     def __call__(self, args, **kwargs) -> 'RingElement':
-        return self.coerce(self.base_coerce(args), **kwargs)
+        try:
+            return self.coerce(self.base_coerce(args), **kwargs)
+
+        except CoercionException as e:
+            if not self.is_field():
+                raise e
+
+            try:
+                x = args
+                type_x = type(x)
+                if type_x.__name__ == 'Symbol':
+                    return self.function_field(x)
+            except:
+                raise e
+        
 
 
     def __contains__(self, element: 'RingElement') -> bool:
@@ -313,6 +327,12 @@ class Ring(BaseObject):
         while i < self.order():
             yield self.element_at(i)
             i += 1
+
+
+
+    def function_field(self, symbol):
+        from samson.math.algebra.fields.function_field import RationalFunctionField
+        return RationalFunctionField(symbol, self)
 
 
 

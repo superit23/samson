@@ -498,6 +498,12 @@ class Matrix(RingElement):
         """
         return gaussian_elimination(self, rhs)
 
+    solve_right = LUsolve
+
+
+    def solve_left(self, rhs: 'Matrix') -> 'Matrix':
+        return self.T.solve_right(rhs.T).T
+
 
     def rref(self) -> 'Matrix':
         """

@@ -14,24 +14,6 @@ class Field(Ring):
         return True
 
 
-    def __call__(self, args, **kwargs) -> 'RingElement':
-        try:
-            return super().__call__(args, **kwargs)
-        except CoercionException as e:
-            try:
-                x = args
-                type_x = type(x)
-                if type_x.__name__ == 'Symbol':
-                    return self.function_field(x)
-            except:
-                raise e
-    
-
-    def function_field(self, symbol):
-        from samson.math.algebra.fields.function_field import RationalFunctionField
-        return RationalFunctionField(symbol, self)
-
-
 
 class FieldElement(RingElement):
     """
