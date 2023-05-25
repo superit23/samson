@@ -19,6 +19,7 @@ class RC5(BlockCipher):
 
     KEY_SIZE   = SizeSpec(size_type=SizeType.RANGE, sizes=range(0, 2041))
     BLOCK_SIZE = SizeSpec(size_type=SizeType.RANGE, sizes=[32, 64, 128])
+    ENDIANNESS = 'little'
 
     def __init__(self, key: bytes, num_rounds: int=12, block_size: int=128):
         """
@@ -93,10 +94,10 @@ class RC5(BlockCipher):
         Returns:
             Bytes: Resulting ciphertext.
         """
-        plaintext = Bytes.wrap(plaintext).zfill(self.block_size // 4)
+        plaintext = self._ensure_endianness(plaintext).zfill(self.block_size // 4)
 
-        A = plaintext[self.block_size // 8:].int()
-        B = plaintext[:self.block_size // 8].int()
+        A = plaintext[:self.block_size // 8].int()
+        B = plaintext[self.block_size // 8:].int()
 
         A = (A + self.S[0]) % self.mod
         B = (B + self.S[1]) % self.mod
@@ -105,7 +106,7 @@ class RC5(BlockCipher):
             A = (left_rotate(A ^ B, B % self.block_size, bits=self.block_size) + self.S[2*i]) % self.mod
             B = (left_rotate(B ^ A, A % self.block_size, bits=self.block_size) + self.S[2*i + 1]) % self.mod
 
-        return (Bytes(A, 'little').zfill(self.block_size // 8) + Bytes(B, 'little').zfill(self.block_size // 8))
+        return Bytes(A, 'little').zfill(self.block_size // 8) + Bytes(B, 'little').zfill(self.block_size // 8)
 
 
 
@@ -119,7 +120,7 @@ class RC5(BlockCipher):
         Returns:
             Bytes: Resulting plaintext.
         """
-        ciphertext = Bytes.wrap(ciphertext).zfill(self.block_size // 4)
+        ciphertext = self._ensure_endianness(ciphertext).zfill(self.block_size // 4)
 
         A = ciphertext[:self.block_size // 8].int()
         B = ciphertext[self.block_size // 8:].int()
@@ -131,4 +132,4 @@ class RC5(BlockCipher):
         A = (A - self.S[0]) % self.mod
         B = (B - self.S[1]) % self.mod
 
-        return Bytes((Bytes(A, 'little').zfill(self.block_size // 8) + Bytes(B, 'little').zfill(self.block_size // 8)).int()).zfill(self.block_size // 4)
+        return Bytes(A, 'little').zfill(self.block_size // 8) + Bytes(B, 'little').zfill(self.block_size // 8)

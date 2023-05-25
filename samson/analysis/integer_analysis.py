@@ -28,9 +28,6 @@ class IntegerAnalysis(BaseObject):
         self.small_factors = small_factors
 
 
-    def __repr__(self):
-        return f"<IntegerAnalysis: is_prime={self.is_prime}, smoothness_ratio={self.smoothness_ratio}, byte_aligned={self.byte_aligned}, is_safe_prime={self.is_safe_prime}, prime_name='{self.prime_name}', percent_one={self.percent_one}, is_uniform={self.is_uniform}, small_factors={self.small_factors}>"
-
     def __reprdir__(self):
         return ['is_prime', 'smoothness_ratio', 'byte_aligned', 'is_safe_prime', 'prime_name', 'percent_one', 'is_uniform', 'small_factors']
 
@@ -51,7 +48,7 @@ class IntegerAnalysis(BaseObject):
 
         uniform_dist     = abs(0.50 - percent_one) < 0.05
         factor_mod       = n - (1 if n_is_prime else 0)
-        small_factors    = factor(factor_mod, use_rho=False, use_siqs=False, use_smooth_p=False)
+        small_factors    = factor(factor_mod, use_rho=False, use_siqs=False, use_smooth_p=False, use_ecm=False)
         smoothness_ratio = smoothness(factor_mod, factors=small_factors)
 
         return IntegerAnalysis(n=n, is_prime=n_is_prime, smoothness_ratio=smoothness_ratio, byte_aligned=byte_aligned, is_safe_prime=is_safe_prime, prime_name=prime_name, percent_one=percent_one, is_uniform=uniform_dist, small_factors=small_factors)

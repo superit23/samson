@@ -1,6 +1,7 @@
 from math import sqrt, pi, log2, e
-from samson.math.general import random_int, lcm, ceil, log1p, log, _integer_ring, _real_field
+from samson.math.general import random_int, lcm, ceil, log1p, log, _integer_ring, _real_field, _symbols
 from tqdm import tqdm
+import functools
 import operator as _operator
 import json
 import difflib as _difflib
@@ -211,8 +212,8 @@ def birthday_attack_analysis(bits: int, probability: float, prec: int=None) -> f
         https://en.wikipedia.org/wiki/Birthday_attack#Mathematics
     """
     RealField = _real_field.RealField
-    RR = RealField(prec or (bits // 2 + 7))
-    return (RR(2 * 2**bits) * RR(-RR(-probability).log1p())).sqrt()
+    RR = RealField(prec or int(bits // 2 + 7))
+    return ((2* RR(2)**bits) * RR(-RR(-probability).log1p())).sqrt()
 
 
 def coupon_collector_analysis(n: int, prec: int=None) -> (float, float):
@@ -421,10 +422,10 @@ def simulate_until_event(p: float, runs: int, visual: bool=False) -> float:
 
 def approximate_n_bit_permutations(n: int, prec: int=None) -> float:
     """
-    Approximates the number of `n`-bit permutations.
+    Approximates the number of `n`-bit permutations. Equal to the number of of `n`-bit bijections which are a subset of the `2^2^(n*n)` `n`-bit boolean functions.
 
     Parameters:
-        x    (int): Size of permutation in bits.
+        n    (int): Size of permutation in bits.
         prec (int): Desired precision. Will be calculated automatically if not specified.
 
     Returns:
@@ -435,13 +436,29 @@ def approximate_n_bit_permutations(n: int, prec: int=None) -> float:
     return RR(RR.ctx.factorial(2**n)).log(2)
 
 
+def approximate_n_to_m_bit_functions(n: int, m: int=1, prec: int=53) -> float:
+    """
+    Approximates the number of `n-to-m`-bit functions.
+
+    Parameters:
+        n    (int): Size of input in bits.
+        m    (int): Size of output in bits.
+        prec (int): Desired precision.
+
+    Returns:
+        float: Exponent of number of functions with base 2.
+    """
+    RealField = _real_field.RealField
+    R = RealField(prec)
+    return R(2)**(n*m)
+
 
 def _approximate_n_bit_permutations(n: int) -> float:
     """
     Approximates the number of `n`-bit permutations.
 
     Parameters:
-        x (int): Size of permutation in bits.
+        n (int): Size of permutation in bits.
 
     Returns:
         float: Exponent of number of permutations with base 2.
@@ -449,6 +466,124 @@ def _approximate_n_bit_permutations(n: int) -> float:
     a = log2(2*pi)
     b = (2**n/e)
     return a*n/2 + log2(b)*2**n
+
+
+
+@functools.lru_cache(None)
+def _dickman_phi(k, i, prec):
+    R = k.field
+    if k <= 1:
+        if i == 0:
+            return R.one
+        else:
+            return R.zero
+    elif k == 2:
+        if i == 0:
+            return R.one - R(2).ln()
+        else:
+            return R.one/R(2**i*i)
+    else:
+        if i == 0:
+            return 1/R(k-1)*sum([_dickman_phi(k, j, prec)/R(j+1) for j in range(1, prec)])
+        else:
+            return sum([_dickman_phi(k-1, j, prec)/(R(k)**(i-j)*i) for j in range(int(i))])
+
+
+
+
+def approximate_dickman_rho_polynomial(u: int, prec: int=None) -> float:
+    """
+    Used by Dickman psi to estimate density of smooth numbers.
+
+    Parameters:
+        u  (float): `x log y`.
+        prec (int): Desired precision.
+
+    Returns:
+        float: Approximation of `rho(u)`.
+
+    References:
+        https://www.ams.org/journals/mcom/2006-75-254/S0025-5718-05-01798-9/S0025-5718-05-01798-9.pdf
+    """
+    RealField = _real_field.RealField
+    Symbol = _symbols.Symbol
+
+    if not prec and type(u) is _real_field.RealElement:
+        R = u.field
+    else:
+        R = RealField(prec or 53)
+        u = R(u)
+
+
+    if u.ceil() != u:
+        raise ValueError('"u" must be an integer')
+
+    P = R[Symbol('x')]
+    return P([_dickman_phi(u, i, R.prec) for i in range(R.prec+1)])
+
+
+
+def approximate_dickman_rho(u: float, prec: int=None) -> float:
+    """
+    Used by Dickman psi to estimate density of smooth numbers.
+
+    Parameters:
+        u  (float): `x log y`.
+        prec (int): Desired precision.
+
+    Returns:
+        float: Approximation of `rho(u)`.
+
+    References:
+        https://www.ams.org/journals/mcom/2006-75-254/S0025-5718-05-01798-9/S0025-5718-05-01798-9.pdf
+    """
+    RealField = _real_field.RealField
+
+    if not prec and type(u) is _real_field.RealElement:
+        R = u.field
+    else:
+        R = RealField(prec or 53)
+        u = R(u)
+
+    if u < 0:
+        return R.zero
+    
+    if u <= 1:
+        return R.one
+
+    R  = u.field
+    xi = (-u % 1) or R.one
+    k  = u + xi
+    return approximate_dickman_rho_polynomial(k, prec)(xi)
+
+
+
+def approximate_dickman_psi(x: int, y: int, prec: int=53, ignore_bound: bool=False) -> float:
+    """
+    Approximates the number of `y`-smooth numbers less than `x` using Dickman psi.
+
+    Parameters:
+        x (int): Upper bound of integer range.
+        y (int): Upper bound of factor range.
+
+    Returns:
+        float: Approximation of `y`-smooth numbers less than `x`.
+
+    References:
+        https://en.wikipedia.org/wiki/Dickman_function
+        https://www.jstor.org/stable/2000551
+    """
+    RealField = _real_field.RealField
+    R = RealField(prec)
+
+    x, y = R(x), R(y)
+    u    = x.log(y)
+
+    if not ignore_bound and u > y.sqrt():
+        raise ValueError(f"u ({u}) must be within 1 <= u <= y.sqrt()")
+
+    return x*approximate_dickman_rho(u, prec)
+
 
 
 def generate_rc4_bias_map(ciphertexts):

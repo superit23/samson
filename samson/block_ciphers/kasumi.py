@@ -81,10 +81,10 @@ def round_func(R_i, K_i):
 
 
     if counter % 2 == 1:
-        state = fun_fl(KL_i, R_i)
+        state  = fun_fl(KL_i, R_i)
         output = fun_fo(KO_i, KI_i, state)
     else:
-        state = fun_fo(KO_i, KI_i, R_i)
+        state  = fun_fo(KO_i, KI_i, R_i)
         output = fun_fl(KL_i, state)
 
     return output
@@ -162,7 +162,7 @@ class KASUMI(FeistelNetwork, BlockCipher):
 
         Parameters:
             plaintext (bytes): Bytes-like object to be encrypted.
-        
+
         Returns:
             Bytes: Resulting ciphertext.
         """
@@ -179,7 +179,7 @@ class KASUMI(FeistelNetwork, BlockCipher):
 
         Parameters:
             ciphertext (bytes): Bytes-like object to be decrypted.
-        
+
         Returns:
             Bytes: Resulting plaintext.
         """

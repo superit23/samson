@@ -182,6 +182,15 @@ class BlockCipher(EncryptionAlg):
     KEY_SIZE           = SizeSpec(size_type=SizeType.RANGE, sizes=[128, 192, 256], typical=[128, 256])
     BLOCK_SIZE         = SizeSpec(size_type=SizeType.SINGLE, sizes=128)
     IO_RELATION_TYPE   = IORelationType.EQUAL
+    ENDIANNESS         = 'big'
+
+    def _ensure_endianness(self, b):
+        b = Bytes.wrap(b, self.ENDIANNESS)
+        if b.byteorder != self.ENDIANNESS:
+            b = Bytes(bytes(b[::-1]), self.ENDIANNESS)
+
+        return b
+
 
     @classproperty
     def INPUT_SIZE(cls):

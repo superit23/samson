@@ -22,7 +22,7 @@ class CBC(BlockCipherMode):
         """
         Primitive.__init__(self)
         self.cipher = cipher
-        self.iv     = iv
+        self.iv     = cipher._ensure_endianness(iv)
         self.padder = PKCS7(self.cipher.block_size)
 
 
@@ -38,7 +38,7 @@ class CBC(BlockCipherMode):
         Returns:
             Bytes: Resulting ciphertext.
         """
-        plaintext = Bytes.wrap(plaintext)
+        plaintext = self.cipher._ensure_endianness(plaintext)
 
         if pad:
             plaintext = self.padder.pad(plaintext)
@@ -47,11 +47,11 @@ class CBC(BlockCipherMode):
         if len(plaintext) % self.cipher.block_size != 0:
             raise ValueError("Plaintext is not a multiple of the block size")
 
-        ciphertext = Bytes(b'')
+        ciphertext = Bytes(b'', self.cipher.ENDIANNESS)
         last_block = self.iv
 
         for block in get_blocks(plaintext, self.cipher.block_size):
-            enc_block   = self.cipher.encrypt(bytes(last_block ^ block))
+            enc_block   = self.cipher.encrypt(last_block ^ block)
             ciphertext += enc_block
             last_block  = enc_block
 
@@ -61,7 +61,7 @@ class CBC(BlockCipherMode):
     def decrypt(self, ciphertext: bytes, unpad: bool=True) -> Bytes:
         """
         Decrypts `ciphertext`.
-        
+
         Parameters:
             ciphertext (bytes): Bytes-like object to be decrypted.
             unpad       (bool): Unpads the plaintext with PKCS7.

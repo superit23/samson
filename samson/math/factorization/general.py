@@ -296,6 +296,7 @@ def _pk1_factor(p, k):
 
 
 def _fib_factor(n: int, visual: bool=False):
+    is_prime = _samson_math.is_prime
     k = _samson_math.estimate_fibonacci_index(n)
     factor_cache = {}
 
@@ -324,6 +325,9 @@ def _fib_factor(n: int, visual: bool=False):
 
         return result
 
+
+    if is_prime(k):
+        return factor(n, fibonacci_check=False)
 
     result = subfactor(factor(k))
     return result
@@ -644,7 +648,7 @@ _ECM_QUICK_ITERATIONS = 100
 _CADO_SUPREMACY = 256
 
 @RUNTIME.global_cache()
-def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, use_msieve: bool=True, use_cado_nfs: bool=True, use_siqs: bool=False, use_smooth_p: bool=False, use_ecm: bool=True, ecm_attempts: int=10000, perfect_power_checks: bool=True, mersenne_check: bool=True, visual: bool=False, reraise_interrupt: bool=False, user_stop_func: FunctionType=None, max_factor_size: int=None) -> Factors:
+def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, use_msieve: bool=True, use_cado_nfs: bool=True, use_siqs: bool=False, use_smooth_p: bool=False, use_ecm: bool=True, ecm_attempts: int=10000, perfect_power_checks: bool=True, mersenne_check: bool=True, fibonacci_check: bool=True, visual: bool=False, reraise_interrupt: bool=False, user_stop_func: FunctionType=None, max_factor_size: int=None) -> Factors:
     """
     Factors an integer `n` into its prime factors.
 
@@ -661,6 +665,7 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
         ecm_attempts          (int): Maximum number of ECM attempts before giving up.
         perfect_power_checks (bool): Whether or not to check for perfect powers.
         mersenne_check       (bool): Whether or not to check if `n` is a Mersenne number and factor accordingly (see `_mersenne_factor`).
+        fibonacci_check      (bool): Whether or not to check if `n` is a Fibonacii number and factor accordingly (see `_fib_factor`).
         visual               (bool): Whether or not to display a progress bar.
         reraise_interrupt    (bool): Whether or not to reraise a KeyboardInterrupt.
         user_stop_func       (func): A function that takes in (`n`, facs) and returns True if the user wants to stop factoring.
@@ -773,6 +778,9 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
 
     # Actual factorization
     try:
+        if visual:
+            log.info(f"Beginning factorization of {n}")
+
         if mersenne_check:
             if is_power_of_two(original+1):
                 if visual:
@@ -818,7 +826,7 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
 
 
         # Check if Fibonacci number
-        if _samson_math.fibonacci_number(_samson_math.estimate_fibonacci_index(n)) == n:
+        if fibonacci_check and _samson_math.fibonacci_number(_samson_math.estimate_fibonacci_index(n)) == n:
             if visual:
                 log.info("Fibonacci number detected; using optimized subroutine")
 

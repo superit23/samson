@@ -143,6 +143,11 @@ class RealElement(FieldElement):
         return self.field.one
 
 
+    def ei(self) -> 'RealElement':
+        return self.field(self.field.ctx.ei(self.val))
+
+
+
 class RealField(Field):
 
     def __init__(self, prec: int=53, ctx: object=None):
@@ -220,6 +225,20 @@ class RealField(Field):
 
             return A
 
+
+
+    def quad(self, f, range) -> 'RealElement':
+        return self(self.ctx.quad(lambda args: f(args).val, range))
+
+
+    @property
+    @RUNTIME.global_cache()
+    def golomb_dickman(self) -> 'RealElement':
+        """
+        References:
+            https://en.wikipedia.org/wiki/Golomb%E2%80%93Dickman_constant
+        """
+        return self.quad(lambda t: RR.e**RR(t).li(), [0,1])
 
 
     def characteristic(self) -> int:

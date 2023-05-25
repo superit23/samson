@@ -6,14 +6,12 @@ from samson.ace.decorators import register_primitive
 import math
 
 
-# https://www.cl.cam.ac.uk/~rja14/Papers/bear-lion.pdf
 @register_primitive()
 class BEAR(BlockCipher):
     """
+    References:
+        https://www.cl.cam.ac.uk/~rja14/Papers/bear-lion.pdf
     """
-
-    # KEY_SIZE   = SizeSpec(size_type=SizeType.RANGE, sizes=range(0, 2041))
-    # BLOCK_SIZE = SizeSpec(size_type=SizeType.RANGE, sizes=[32, 64, 128])
 
     def __init__(self, key: bytes, hash_obj: MAC, stream_cipher: StreamCipher, key_schedule: FunctionType, block_size: int=128):
         Primitive.__init__(self)
