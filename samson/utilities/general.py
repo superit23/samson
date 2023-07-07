@@ -300,7 +300,7 @@ def add_or_increment(dictionary: dict, key: object, value: int=1):
 
 def crc24(data: bytes) -> int:
     """
-    Calculates the CRC-24 checksum of `data`
+    Calculates the CRC-24 checksum of `data`.
 
     Parameters:
         data (bytes): Data to be checksummed.

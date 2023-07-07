@@ -122,22 +122,17 @@ class EqualsConstraint(BaseObject):
                     good_constraints = set()
 
                     for sub_con in sub_con_system.constraints:
-                        # print()
-                        # print("Testing sub_con", self, sub_con, sub_con.constrains(self.sym))
 
                         try:
                             mod_constraint = (self + sub_con).constraints
-                            # print(mod_constraint)
+
                             if self in mod_constraint:
                                 mod_constraint.remove(self)
-                            # print("Adding good constraint", mod_constraint)
-                            if any(type(con) is OneOfConstraint and con.simplify() for con in mod_constraint):
-                                print("CON SIMP", self, sub_con, mod_constraint)
-    
+
                             for con in mod_constraint:
                                 if type(con) is OneOfConstraint and con.simplify():
                                     con = con.simplify()
-                                    print("CON", con)
+
                                     good_constraints = good_constraints.union(con.constraints)
                                 else:
                                     good_constraints.add(con)
@@ -147,23 +142,14 @@ class EqualsConstraint(BaseObject):
 
                     if satisfied and good_constraints:
                         con_sys = ConstraintSystem(good_constraints)
-                        #con_sys = ConstraintSystem([con for con in sub_con_system.constraints if hasattr(con, 'syms') or not con.constrains(self.sym)])
+
                         new_one_of.append(con_sys)
-                        # print("self", self)
-                        # print("Appending con_sys", con_sys)
-                        # print("sub_con_system", sub_con_system)
 
 
-                # print()
-                # print("Out of loop, building system")
+
                 if new_one_of:
-                    print("NEW_ONE_OF", new_one_of)
                     if len(new_one_of) == 1:
                         constraints = list(new_one_of[0].constraints)
-                        for con in constraints:
-                            if type(con) is OneOfConstraint and con.simplify():
-                                pass
-                                # print("CON SIMP", con, con.simplify())
                     else:
                         oneof = OneOfConstraint([s for s in other.syms if s != self.sym], new_one_of)
                         simp  = oneof.simplify()
@@ -216,17 +202,12 @@ class OneOfConstraint(BaseObject):
             gens = [(a, {tuple(sorted(tuple(dic.items()))) for dic in a.generate()}) for a in self.con_sys]
 
             bad_con_sys = set()
-            # print("GENS", gens)
             for a,a_gen in gens:
                 for b,b_gen in gens:
                     if a == b:
-                        # print("a == b; skip")
                         continue
 
-                    # print("Testing", a, b, a_gen.issuperset(b_gen))
-
                     if a_gen.issuperset(b_gen):
-                        # print("A SUPER B", a, b)
                         bad_con_sys.add(b)
             
 
@@ -236,7 +217,6 @@ class OneOfConstraint(BaseObject):
                 syms = syms.union(c.get_syms())
 
             if len(new_con_sys) < len(self.con_sys):
-                # print("PRUNED OO", len(new_con_sys))
                 oo = OneOfConstraint(syms, new_con_sys)
                 return oo.simplify() or ConstraintSystem([oo])
 
@@ -244,24 +224,18 @@ class OneOfConstraint(BaseObject):
 
     def recursive_simplify(self):
         n_oo = set()
-        # print("RECURSE SIMP", self)
         for con_sys in self.con_sys:
             n_cs = set()
             for con in con_sys.constraints:
                 if type(con) is OneOfConstraint:
-                    # print("CON", con)
                     simp = con.recursive_simplify()
                     
-                    # print("SIMP", simp)
-                    # print()
 
                     if type(simp) is ConstraintSystem:
                         n_cs = n_cs.union(simp.constraints)
                     else:
                         n_cs.add(simp)
                 else:
-                    if type(con) is ConstraintSystem:
-                        print("THIS IS WRONG", con)
                     n_cs.add(con)
 
             n_oo.add(ConstraintSystem(n_cs))
@@ -269,14 +243,11 @@ class OneOfConstraint(BaseObject):
 
         syms = set()
         for c in n_oo:
-            if any(type(con) is ConstraintSystem for con in c.constraints):
-                print("RUH ROH RAGGY", c)
             syms = syms.union(c.get_syms())
 
         oo = OneOfConstraint(syms, n_oo)
         result = oo.simplify() or oo
-        # print("RESULT", result)
-        
+
         return result
 
 
@@ -395,8 +366,8 @@ class ConstraintSystem(BaseObject):
             
             return cons_by_type
 
-        # print("!! BEGIN CS MERGE !!", self, other)
 
+        # CS merge
         s_type_map = separate_by_type(self.constraints)
         o_type_map = separate_by_type(other.constraints)
 
@@ -416,20 +387,12 @@ class ConstraintSystem(BaseObject):
             eq_constraints = set(o_eq)
 
 
-        print("START CS ADD")
-        print("self", self)
-        print("other", other)
-        print()
-
-        print("Initial eq_constraints", eq_constraints)
-
-
         s_oo = s_type_map[OneOfConstraint]
         o_oo = o_type_map[OneOfConstraint]
 
         simplified_oos = set()
         extracted_anys = set()
-        # print()
+
 
         # Decompose OOs
         all_oos = {*s_oo, *o_oo}
@@ -442,10 +405,7 @@ class ConstraintSystem(BaseObject):
                 curr = oo
                 for eq in copy(eq_constraints):
                     if eq.sym in oo.syms:
-                        print()
-                        print("EQ OO", eq, oo)
                         curr += eq
-                        print("curr", curr)
 
                         # Remove eq from the system
                         c_type_map = separate_by_type(curr.constraints)
@@ -481,9 +441,6 @@ class ConstraintSystem(BaseObject):
                 simplified_oos = set()
         
 
-        print("eq_constraints after oo decompose", eq_constraints)
-        print("extracted_anys after oo decompose", extracted_anys)
-
         # Combine OOs
         while len(simplified_oos) > 1:
             l_oo = list(simplified_oos)
@@ -500,8 +457,6 @@ class ConstraintSystem(BaseObject):
                     eq_constraints.add(combined)
 
                 else:
-                    if combined.simplify():
-                        print("COMBINED SIMP")
                     simplified_oos.add(combined)
 
 
@@ -521,8 +476,6 @@ class ConstraintSystem(BaseObject):
                     break
         
 
-        print("simplified_oos", simplified_oos)
-        print()
 
         # Ensure OOs are simplified
         re_simplified = set()
@@ -541,15 +494,11 @@ class ConstraintSystem(BaseObject):
                 try:
                     eq_a + eq_b
                 except NoSolutionException:
-                    print("NO SOLUTION")
                     raise NoSolutionException
 
 
         good_anys = any_cons.difference(removed_anys)
         result = ConstraintSystem(good_anys.union(eq_constraints).union(re_simplified))
-        print("RESULT", result)
-        print()
-        print()
         return result
 
 
@@ -572,22 +521,10 @@ def bv_process(bv, outputs):
     return constraints
 
 
-import time
 def poly_rec(p, output, constraints):
-    # print(p, output, constraints)
     if type(p) is not Polynomial:
-        # print("p not poly; abort")
+        # p not poly; abort
         return constraints
-
-    #time.sleep(0.3)
-    print()
-    print()
-    print("START POLY_REC")
-    print("p[0]", p[0])
-    print("p[1]", p[1])
-    print("output", output)
-    print()
-
 
     a = p.symbol.repr
 
@@ -596,28 +533,21 @@ def poly_rec(p, output, constraints):
         if not p[1]:
             raise NoSolutionException
 
-        print('not p[0] and output')
         constraints += EqualsConstraint(a, 1)
-        print("CONSTRAINTS ARE", constraints)
         constraints  = poly_rec(p[1], output, constraints)
-        print("AND NOW", constraints)
-        # print("not p[0] and output RECURSIVE RETURN")
+        # not p[0] and output RECURSIVE RETURN
 
     # x*a == 0, then (x == 0 AND a == 0) OR (x == 0 AND a == 1) OR (x == 1 OR a == 0)
     elif not p[0] and not output:
-        print('not p[0] and not output')
-        # print('p[1]', p[1], p[1] == p.coeff_ring.one)
         if p[1] == p.coeff_ring.one:
-            # print('p[1] == 1')
             constraints += EqualsConstraint(a, output)
             return constraints
 
 
-        #print(p[1], 0)
-        print("not p[0] and not output; solving p[1] for 0")
+        # not p[0] and not output; solving p[1] for 0
         x_cons_0 = poly_rec(p[1], 0, ConstraintSystem())
 
-        print("not p[0] and not output; solving p[1] for 1")
+        # not p[0] and not output; solving p[1] for 1
 
         # We only need this for the variables. If it doesn't work,
         # just throw it out. This should really only happen if
@@ -641,54 +571,33 @@ def poly_rec(p, output, constraints):
 
     # This layer is null, just hop to the next
     elif p[0] and not p[1]:
-        print('p[0] and not p[1]')
 
         # If the constant doesn't match the output, throw
         if p[0] == p.coeff_ring.one:
             if not output:
                 raise NoSolutionException
         else:
-            # print(repr(p[0]))
             constraints = poly_rec(p[0], output, constraints)
-            # print("p[0] and not p[1] RECURSIVE RETURN")
 
     # If we're here, p0 and p1 have values
     elif output:
-        # print("START OUTPUT")
-        print("p0 AND p1, output == 1")
+        # p0 AND p1, output == 1
 
         # 1 here means p0 != p1 (p1 + p0 = 1)
         # Check for constant
         # p1 + 1 = 1
         # p1 = 0; Solve p1 for 0!
         if p[0] == p.coeff_ring.one:
-            # print()
-            # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            # print("p1 + p0 = 1, p0 == 1!")
-            # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            # print()
             constraints = poly_rec(p[1]*p.symbol, 0, constraints)
 
         # Non constant p[0]; handle symbols
         else:
-            # print("WOOPS! OUTPUT, ", repr(p))
             p0_cons_0 = poly_rec(p[0], 0, ConstraintSystem())
-            # print("output RECURSIVE RETURN, p0_cons_0")
             p0_cons_1 = poly_rec(p[0], 1, ConstraintSystem())
-            # print("output RECURSIVE RETURN, p0_cons_1")
             p1_cons_0 = poly_rec(p[1]*p.symbol, 0, ConstraintSystem())
-            # print("output RECURSIVE RETURN, p1_cons_0")
             p1_cons_1 = poly_rec(p[1]*p.symbol, 1, ConstraintSystem())
-            # print("output RECURSIVE RETURN, p1_cons_1")
+
             syms = {a}.union(p0_cons_0.get_syms()).union(p0_cons_1.get_syms()).union(p1_cons_0.get_syms()).union(p1_cons_1.get_syms())
-
-            # print("p0_cons_0", p0_cons_0)
-            # print("p0_cons_1", p0_cons_1)
-            # print("p1_cons_0", p1_cons_0)
-            # print("p1_cons_1", p1_cons_1)
-
 
             try:
                 constraints += OneOfConstraint(syms, [
@@ -699,36 +608,19 @@ def poly_rec(p, output, constraints):
                 try:
                     constraints += p0_cons_0 + p1_cons_1
                 except NoSolutionException:
-                    # print("This should work?!")
-                    # print("p0_cons_1", p0_cons_1)
-                    # print("p1_cons_0", p1_cons_0)
-                    # print("p0_cons_1 + p1_cons_0", p0_cons_1 + p1_cons_0)
-                    # print("constraints", constraints)
-                    # print("altogether", p0_cons_1 + p1_cons_0 + constraints)
                     constraints += p0_cons_1 + p1_cons_0
 
 
     else:
-        print("p0 AND p1, output == 0")
-        # p1 + p0 = 0
-        # p0 == p1
-
+        # p0 AND p1, output == 0
         if p[0] == p.coeff_ring.one:
             return poly_rec(p[1]*p.symbol, 1, constraints)
 
-        # print("p0 == p1; NOT IMPLEMENTED?!")
         p0_cons_0 = poly_rec(p[0], 0, ConstraintSystem())
-        print("p0_cons_0", p0_cons_0)
-        # print("NOT IMPLEMENTED RECURSIVE RETURN, p0_cons_0")
         p0_cons_1 = poly_rec(p[0], 1, ConstraintSystem())
-        print("p0_cons_1", p0_cons_1)
-        # print("NOT IMPLEMENTED RECURSIVE RETURN, p0_cons_1")
         p1_cons_0 = poly_rec(p[1]*p.symbol, 0, ConstraintSystem())
-        print("p1_cons_0", p1_cons_0)
-        # print("NOT IMPLEMENTED RECURSIVE RETURN, p1_cons_0")
         p1_cons_1 = poly_rec(p[1]*p.symbol, 1, ConstraintSystem())
-        print("p1_cons_1", p1_cons_1)
-        # print("NOT IMPLEMENTED RECURSIVE RETURN, p1_cons_1")
+
         syms = {a}.union(p0_cons_0.get_syms()).union(p0_cons_1.get_syms()).union(p1_cons_0.get_syms()).union(p1_cons_1.get_syms())
 
 
@@ -737,21 +629,11 @@ def poly_rec(p, output, constraints):
                 p0_cons_0 + p1_cons_0,
                 p0_cons_1 + p1_cons_1
             ])
-            # print()
-            # print("NOT IMPLEMENTED CALC")
-            # print("p0_cons_0", p0_cons_0)
-            # print("p1_cons_0", p1_cons_0)
-            # print("p0_cons_0 + p1_cons_0", p0_cons_0 + p1_cons_0)
-            # print("p0_cons_1 + p1_cons_1", p0_cons_1 + p1_cons_1)
         except NoSolutionException:
             try:
                 constraints += p0_cons_0 + p1_cons_0
-                # print("p0_cons_0 + p1_cons_0", p0_cons_0 + p1_cons_0)
             except NoSolutionException:
                 constraints += p0_cons_1 + p1_cons_1
-                # print("p0_cons_1 + p1_cons_1", p0_cons_1 + p1_cons_1)
 
 
-    print("RETURN", constraints)
-    # print()
     return constraints

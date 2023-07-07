@@ -68,7 +68,6 @@ class ChaCha(Salsa):
             *[int.from_bytes(block, 'little') for block in get_blocks(self.nonce, 4)]
         ]
 
-
         tmp = deepcopy(x)
 
         for _ in range(self.rounds // 2):

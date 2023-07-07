@@ -391,7 +391,7 @@ def find_factors(n: int, solutions: list, smooth_nums: list, M: BMatrix, marks: 
     if visual:
         iterator = tqdm(solutions, desc="siqs: Solving rows", unit="sol")
 
-    for solution in solutions:
+    for solution in iterator:
         if left == 1:
             break
 

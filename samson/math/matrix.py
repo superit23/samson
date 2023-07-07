@@ -1,8 +1,8 @@
 from samson.math.dense_vector import DenseVector
 from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.algebra.rings.integer_ring import ZZ
-from samson.math.factorization.general import is_perfect_power
 from samson.math.general import gaussian_elimination, lll, gram_schmidt, is_power_of_two
+from samson.utilities.exceptions import NoSolutionException
 from samson.utilities.runtime import RUNTIME
 from shutil import get_terminal_size
 from types import FunctionType
@@ -244,7 +244,7 @@ class Matrix(RingElement):
             idx = i
 
             # Find first nonzero
-            while not mat[idx, i] and idx < n:
+            while idx < n and not mat[idx, i]:
                 idx += 1
 
             if idx == n:
@@ -570,9 +570,14 @@ class Matrix(RingElement):
         References:
             https://en.wikipedia.org/wiki/Kernel_(linear_algebra)#Computation_by_Gaussian_elimination
         """
-        AI = self.col_join(Matrix.identity(self.num_cols, self.coeff_ring))
-        c  = AI.T.rref()
-        return Matrix([row[self.num_rows:] for row in c if not any(row[:self.num_rows])])
+        AI   = self.col_join(Matrix.identity(self.num_cols, self.coeff_ring))
+        c    = AI.T.rref()
+        rows = [row[self.num_rows:] for row in c if not any(row[:self.num_rows])]
+
+        if not rows:
+            raise NoSolutionException
+
+        return Matrix(rows)
 
 
     def left_kernel(self) -> 'Matrix':
@@ -689,6 +694,30 @@ class Matrix(RingElement):
         return M0.col_join(M1)
 
 
+    def is_linearly_independent(self) -> bool:
+        if self.num_rows > self.num_cols:
+            return False
+
+        elif self.num_cols > self.num_rows:
+            return self*~self == Matrix.identity(self.num_rows, self.coeff_ring)
+
+        return bool(self.det())
+
+
+    def find_linearly_dependent_rows(self) -> list:
+        return [i for i,r in enumerate((self*~self - Matrix.identity(self.num_rows, self.coeff_ring))) if any(r)]
+
+
+    def remove_rows(self, indices):
+        indices = set(indices)
+        return Matrix([r for i,r in enumerate(self.rows) if i not in indices])
+
+
+    def is_basis(self) -> bool:
+        # The idea is that any basis can be rewritten as another basis
+        # If we generate the identity, then we can generate any other vector
+        return self.is_square() and self * ~self == self.ring.one
+
 
     def __getitem__(self, idx: object) -> 'RingElement':
         if type(idx) is tuple:
@@ -804,6 +833,16 @@ class Matrix(RingElement):
             return gaussian_elimination(self, Matrix.identity(len(self), coeff_ring=self.coeff_ring, ring=self.ring))
         else:
             raise ArithmeticError('Matrix is not square and has no ring')
+
+
+    def pseudoinverse(self):
+        B = Matrix.identity(self.num_cols, self.coeff_ring)
+        A = B.solve_left(self)
+        At = A.T
+        Bt = B.T
+
+        Q = (At * A) * (B * Bt)
+        return Bt * ~Q * At
 
 
     def ground_div(self, other: 'RingElement') -> None:

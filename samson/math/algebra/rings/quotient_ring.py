@@ -71,6 +71,16 @@ class QuotientElement(RingElement):
             return False
 
 
+    def __getstate__(self):
+        return {'val': self.val, 'ring': self.ring}
+
+
+    def __setstate__(self, state):
+        self.ring = state['ring']
+        self.val  = state['val']
+
+
+
     def __hash__(self) -> bool:
         return hash((self.val, self.ring))
 
@@ -111,6 +121,26 @@ class QuotientElement(RingElement):
     def partial_inverse(self):
         d, n, _ = xgcd(self.val, self.ring.quotient)
         return n, d
+    
+
+    def __getitem__(self, idx):
+        return self.val[idx]
+
+
+    def __iter__(self):
+        return self.val.__iter__()
+
+
+    # # TODO: This causes deepcopy to infinite
+    # def __getattribute__(self, name):
+    #     print(name)
+    #     try:
+    #         attr = object.__getattribute__(self, name)
+    #     except AttributeError:
+    #         attr = object.__getattribute__(self.val, name)
+
+    #     return attr
+
 
 
 
@@ -232,6 +262,10 @@ class QuotientRing(Ring):
         return self.quotient.is_irreducible()
 
 
+    def _base_ext_degree(self):
+        return self.quotient.degree() if self.quotient.is_a(_poly.Polynomial) else 1
+
+
     def random(self, size: object=None) -> object:
         """
         Generate a random element.
@@ -243,7 +277,7 @@ class QuotientRing(Ring):
             RingElement: Random element of the algebra.
         """
         if not size:
-            size = self.order()-1
+            size = self.order()
 
         if type(size) is int:
             return self[random_int(size)]
@@ -255,13 +289,13 @@ class QuotientRing(Ring):
 
 
 
-    def extension(self, degree: int) -> ('Map', 'Field'):
+    def field_extension(self, degree: int) -> ('Map', 'Field'):
         from samson.math.algebra.all import FF
 
         if type(self.quotient) is _integer_ring.IntegerElement:
             if self.quotient.is_prime():
                 F = FF(int(self.quotient), n=1)
-                phi, codomain = F.extension(degree)
+                phi, codomain = F.field_extension(degree)
                 return phi, codomain
         
 

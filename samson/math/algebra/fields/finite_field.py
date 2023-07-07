@@ -214,8 +214,10 @@ class FiniteField(Field):
         """
         if not type(other) is FiniteFieldElement:
             other = FiniteFieldElement(self.internal_field(other), self)
+
         elif other.field.p != self.p:
             raise CoercionException("Coerced object characteristic mismatches")
+
         elif other.field.n != self.n:
             other = FiniteFieldElement(self.internal_field(other.val.val), self)
 
@@ -250,13 +252,12 @@ class FiniteField(Field):
         return FiniteFieldIsomorphism(self, other, root_idx=root_idx)
 
 
-    def extension(self, degree: int) -> ('Map', 'Field'):
+    def field_extension(self, degree: int) -> ('Map', 'Field'):
         from samson.math.algebra.fields.finite_field_isomorphism import FiniteFieldHomomorphism
-        from samson.math.map import Map
 
         if type(degree) is int:
             if degree == 1:
-                return Map(self, self, map_func=lambda a: a), self
+                return self._coerce_map(self), self
 
             codomain = self.__class__(self.p, degree*self.n)
         else:

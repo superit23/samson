@@ -23,14 +23,8 @@ class RationalFunctionField(Field):
         return hash((self.__class__, tuple(dic_items)))
 
 
-    # def __truediv__(self, element: 'RingElement') -> 'QuotientRing':
-    #     super().__truediv__(element)
-    #     if element.ring != self:
-    #         raise ValueError("'element' must be an element of the ring")
-
-    #     return _quot.QuotientRing(element, self)
-
-
+    def order(self):
+        return self.internal_field.order()
 
     def shorthand(self):
         return f'{self.field.shorthand()}({self.symbol.repr})'
@@ -72,6 +66,9 @@ class RationalFunctionFieldElement(FieldElement):
         den = self.val.denominator.factor()
         return Factors({self.field(k):v for k,v in num.items()}) + {self.field(k):-v for k,v in den.items()}
 
+
+    def order(self):
+        return self.field.order()
 
 
 class FiniteFunctionField(RationalFunctionField):

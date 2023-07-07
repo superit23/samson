@@ -217,7 +217,8 @@ class Order(Ring):
 
         self.defining_polynomial = defining_polynomial.change_ring(QQ)
         self.symbol          = defining_polynomial.symbol
-        self.internal_ring   = QQ[self.symbol]/self.defining_polynomial
+        self.ring            = QQ[self.symbol]
+        self.internal_ring   = self.ring/self.defining_polynomial
         self.symbol.top_ring = self
 
         self.one  = self.ELEMENT_TYPE(self.internal_ring.one, self)
@@ -305,7 +306,7 @@ class Order(Ring):
 
 
     def discriminant(self) -> int:
-        raise NotImplementedError
+        return self.defining_polynomial.discriminant()
 
 
     def generator_matrix(self) -> Matrix:

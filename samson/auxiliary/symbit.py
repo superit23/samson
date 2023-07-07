@@ -458,7 +458,7 @@ class FixedBitVector(BaseObject):
 
 
     def inject_locals(self, locals):
-        locals.update({symbit.repr:SymBit(symbit) for sublist in self.vars.vars for symbit in sublist})
+        locals.update({symbit.repr: SymBit(self.vars.P(symbit)) for sublist in self.vars.vars for symbit in sublist})
 
 
     def _create_copy(self):

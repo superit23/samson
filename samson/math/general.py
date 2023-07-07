@@ -1102,7 +1102,7 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
     Matrix = _mat.Matrix
 
     if system_matrix.num_rows != rhs.num_rows:
-        raise ValueError("Matrices must have the same number of rows")
+        raise ValueError(f"Matrices must have the same number of rows: ({system_matrix.num_rows}x{system_matrix.num_cols} vs {rhs.num_rows}x{rhs.num_cols})")
 
     A = deepcopy(system_matrix).row_join(rhs)
 
@@ -1220,7 +1220,7 @@ def gram_schmidt(matrix: 'Matrix', full: bool=False, A_star: 'Matrix'=None, mu: 
 
     # Manipulating result matrices with zero vectors
     if full:
-        zero = [DenseVector([R.zero for _ in range(n-len(zeroes))])]
+        zero = [DenseVector([R.zero for _ in range(A.num_cols)])]
         for j in zeroes:
             A_star = A_star[:j] + zero + A_star[j:]
 
@@ -3416,7 +3416,7 @@ def fwht(vector: list):
     https://en.wikipedia.org/wiki/Fast_Walsh%E2%80%93Hadamard_transform
     """
     padding_len = 2**math.ceil(math.log2(len(vector)))-len(vector)
-    vec_copy = copy(vector) + [0]*padding_len
+    vec_copy    = copy(vector) + [0]*padding_len
 
     h = 1
     while h < len(vec_copy):
@@ -3429,7 +3429,7 @@ def fwht(vector: list):
                 vec_copy[j+h] = x-y
             
         h *= 2
-    
+
     return vec_copy
 
 
@@ -3585,6 +3585,9 @@ def lucas_polynomial(n: int) -> "Polynomial":
     References:
         https://en.wikipedia.org/wiki/Fibonacci_polynomials
     """
+    if not n:
+        return fibonacci_polynomial(0)+2
+
     return fibonacci_polynomial(2*n) // fibonacci_polynomial(n)
 
 

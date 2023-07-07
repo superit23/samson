@@ -199,3 +199,10 @@ class BaseObject(object):
 
     def deepcopy(self):
         return deepcopy(self)
+
+
+    def is_a(self, cls, allow_subclass: bool=True) -> bool:
+        if allow_subclass:
+            return issubclass(type(self), cls)
+        else:
+            return type(self) is cls

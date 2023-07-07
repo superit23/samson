@@ -119,6 +119,9 @@ class NegativeDegreeElement(RingElement):
 
 
     def __invert__(self) -> 'NegativeDegreeElement':
+        if not self:
+            raise ZeroDivisionError
+
         return self.ring.ELEMENT(~self.val, -self.shift, self.ring)
 
 
@@ -190,7 +193,8 @@ class NegativeDegreeField(Ring):
             other, val = self._precheck_val(other)
             other      = self.ring(other)
             if val is None:
-                val = other.valuation()
+                val   = other.valuation()
+                other = other >> val
 
             return self.ELEMENT(other, -val, self)
 

@@ -64,4 +64,4 @@ class Poly1305TestCase(unittest.TestCase):
 
           candidates = Poly1305.nonce_reuse_attack(msg1, sig1, msg2, sig2)
 
-          self.assertTrue((p1305.r, s.int()) in candidates)
+          self.assertTrue(p1305.r in candidates)

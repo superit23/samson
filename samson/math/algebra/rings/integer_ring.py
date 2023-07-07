@@ -52,6 +52,7 @@ class IntegerElement(RingElement):
 
     def kth_root(self, k: int, strict: bool=True) -> 'IntegerElement':
         root = kth_root(int(self), k)
+
         if strict and self != root**k:
             raise NoSolutionException
 
@@ -122,6 +123,10 @@ class IntegerElement(RingElement):
 
     def __hash__(self) -> int:
         return super().__hash__()
+    
+
+    def __float__(self):
+        return float(self.val)
 
 
 class IntegerRing(Ring):
@@ -201,7 +206,7 @@ class IntegerRing(Ring):
         return type(self) == type(other)
 
 
-    def extension(self, degree: int) -> ('Map', 'Field'):
+    def field_extension(self, degree: int) -> ('Map', 'Field'):
         from samson.math.algebra.rings.order import Order
         from samson.math.map import Map
 
@@ -216,7 +221,7 @@ class IntegerRing(Ring):
             poly = degree
 
         O = Order(poly)
-        return Map(self, self, map_func=lambda a: O(a)), O
+        return O._coerce_map(self), O
 
 
 ZZ = IntegerRing()

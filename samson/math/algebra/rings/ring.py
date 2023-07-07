@@ -1,6 +1,6 @@
-from samson.math.general import fast_mul, square_and_mul, is_prime, mod_inv, xlcm, gcd
+from samson.math.general import fast_mul, square_and_mul, is_prime, mod_inv, xlcm, gcd, random_int, kth_root
 from samson.math.discrete_logarithm import pohlig_hellman, bsgs, pollards_rho_log
-from samson.math.factorization.general import factor
+from samson.math.factorization.general import factor, ecm
 from samson.math.factorization.factors import Factors
 from types import FunctionType
 from samson.utilities.runtime import RUNTIME
@@ -14,6 +14,11 @@ _quot = LazyLoader('_quot', globals(), 'samson.math.algebra.rings.quotient_ring'
 _frac = LazyLoader('_frac', globals(), 'samson.math.algebra.fields.fraction_field')
 _mulg = LazyLoader('_mulg', globals(), 'samson.math.algebra.rings.multiplicative_group')
 _symb = LazyLoader('_symb', globals(), 'samson.math.symbols')
+_map  = LazyLoader('_map', globals(), 'samson.math.map')
+
+def check_sym(x):
+    return issubclass(type(x), _symb.Symbol)
+
 
 def set_precendence_override(should_override):
     def _wrapper(func):
@@ -86,6 +91,30 @@ class Ring(BaseObject):
         return False
 
 
+    def extension_degree(self, R: 'Ring') -> int:
+        if R == self:
+            return 1
+
+        if not self.is_superstructure_of(R):
+            raise ValueError(f"{self} is not a superstructure of {R}")
+        
+        if hasattr(self, 'ring'):
+            return self._base_ext_degree()*self.ring.extension_degree(R)
+        else:
+            return self._base_ext_degree()
+
+
+    def _base_ext_degree(self):
+        return 1
+
+
+    def gens(self):
+        other = []
+        if hasattr(self, 'ring'):
+            other = [self(g) for g in self.ring.gens()]
+
+        return list(set([self.one] + other))
+
 
     def random(self, size: object) -> 'RingElement':
         """
@@ -97,8 +126,6 @@ class Ring(BaseObject):
         Returns:
             RingElement: Random element of the algebra.
         """
-        from samson.math.general import random_int
-
         if type(size) is int:
             return self[random_int(size)]
         else:
@@ -111,11 +138,13 @@ class Ring(BaseObject):
         Returns:
             FractionField: A fraction field of self.
         """
-        from samson.math.algebra.fields.fraction_field import FractionField
-        return FractionField(self)
+        if self.is_field():
+            return self
+
+        return _frac.FractionField(self)
 
 
-    def extension(self, degree: int) -> ('Map', 'Field'):
+    def field_extension(self, degree: int) -> ('Map', 'Field'):
         if type(degree) is int:
             if degree == 1:
                 return self
@@ -123,13 +152,32 @@ class Ring(BaseObject):
             x = _symb.Symbol('x')
             P = self[x]
 
-            q = P.find_irreducible(degree)
-            return P/q
-        elif type(degree) is _poly.Polynomial:
-            return degree.ring/degree
-        
+            q = P.find_irreducible_poly(degree)
+            Q = P/q
+
+            return Q._coerce_map(self), Q
+
+
+        elif type(degree) is _poly.Polynomial and degree.is_irreducible():
+            if degree.degree() == 1 and degree.coeffs.sparsity == 1:
+                from samson.math.algebra.fields.function_field import RationalFunctionField
+                Q = RationalFunctionField(degree.symbol, self)
+                return Q._coerce_map(self), Q
+
+            else:
+                Q = degree.ring/degree
+                return Q._coerce_map(self), Q
+
         else:
-            raise ValueError(f"Type of {degree} not valid for creating an extension")
+            raise ValueError(f"'{degree}' not valid for creating a field extension")
+
+
+    def ring_extension(self, degree: int) -> ('Map', 'Ring'):
+        pass
+
+
+    def _coerce_map(self, domain):
+        return _map.Map(domain=domain, codomain=self, map_func=lambda e: self(e))
 
 
     def base_coerce(self, other: object) -> 'RingElement':
@@ -153,7 +201,7 @@ class Ring(BaseObject):
                 raise CoercionException(self, other)
             else:
                 return scaled
-        
+
         elif t_o is _mulg.MultiplicativeGroupElement and other.ring.ring == self:
             return other.val
 
@@ -174,14 +222,13 @@ class Ring(BaseObject):
             return self.coerce(self.base_coerce(args), **kwargs)
 
         except CoercionException as e:
-            if not self.is_field():
-                raise e
-
             try:
                 x = args
-                type_x = type(x)
-                if type_x.__name__ == 'Symbol':
-                    return self.function_field(x)
+                if check_sym(x):
+                    return self.polynomial_ring(x).fraction_field()
+                    #return self.function_field(x)
+                else:
+                    raise e
             except:
                 raise e
         
@@ -284,22 +331,25 @@ class Ring(BaseObject):
         return _quot.QuotientRing(element, self)
 
 
+    def polynomial_ring(self, symbol):
+        return symbol.adjoin(self)
+
+
     def __getitem__(self, x: int) -> 'RingElement':
         type_x = type(x)
-        if type_x.__name__ == 'Symbol' or type_x is tuple and type(x[0]).__name__ == 'Symbol':
-            from samson.math.algebra.rings.polynomial_ring import PolynomialRing
+        if check_sym(x) or type_x is tuple and check_sym(x[0]):
 
             if type_x is tuple:
                 ring = self
                 for symbol in x:
-                    ring = PolynomialRing(ring, symbol)
+                    ring = ring.polynomial_ring(symbol)
 
                 return ring
 
             else:
-                return PolynomialRing(self, x)
+                return self.polynomial_ring(x)
 
-        elif type_x is list and type(x[0]).__name__ == 'Symbol':
+        elif type_x is list and check_sym(x[0]):
             from samson.math.algebra.rings.power_series_ring import PowerSeriesRing
             return PowerSeriesRing(self, x[0])
 
@@ -313,13 +363,12 @@ class Ring(BaseObject):
     
 
     def frobenius_endomorphism(self) -> 'Map':
-        from samson.math.map import Map
         p = self.characteristic()
 
         if not is_prime(p):
             raise ValueError(f'Characteristic of {self} not prime')
 
-        return Map(domain=self, codomain=self, map_func=lambda r: self(r)**p)
+        return _map.Map(domain=self, codomain=self, map_func=lambda r: self(r)**p)
     
 
     def __iter__(self):
@@ -331,8 +380,11 @@ class Ring(BaseObject):
 
 
     def function_field(self, symbol):
-        from samson.math.algebra.fields.function_field import RationalFunctionField
-        return RationalFunctionField(symbol, self)
+        if self.is_field():
+            from samson.math.algebra.fields.function_field import RationalFunctionField
+            return RationalFunctionField(symbol, self)
+        else:
+            raise NotImplemented
 
 
 
@@ -486,7 +538,7 @@ class RingElement(BaseObject):
 
 
     def __invert__(self) -> 'RingElement':
-        if self in [self.ring.one, -self.ring.one]:
+        if self in (self.ring.one, -self.ring.one):
             return self
 
         raise NotInvertibleException(f'{self} is not invertible', parameters={'a': self})
@@ -522,7 +574,7 @@ class RingElement(BaseObject):
 
         except NotInvertibleException:
             if RUNTIME.auto_promote:
-                elem = _frac.FractionField(self.ring)((self, other))
+                elem = self.ring.fraction_field()((self, other))
 
                 if elem.denominator == self.ring.one:
                     elem = elem.numerator
@@ -637,7 +689,7 @@ class RingElement(BaseObject):
         Returns:
             bool: Whether the element is invertible.
         """
-        return False
+        return self == self.ring.one
 
 
     def cache_op(self, start: 'RingElement', operation: FunctionType, size: int) -> 'BitVectorCache':
@@ -777,8 +829,6 @@ class RingElement(BaseObject):
         Returns:
             bool: Whether or not the element is irreducible.
         """
-        from samson.math.general import kth_root
-
         sord = self.ordinality()
         stop = kth_root(sord, 2)+1
         stop = min(stop, sord)
@@ -801,8 +851,6 @@ class RingElement(BaseObject):
         Returns:
             Factors: Dictionary-like Factors object.
         """
-        from samson.math.factorization.general import ecm
-        from samson.math.factorization.factors import Factors
         from samson.analysis.general import count_items
 
         factors = []
@@ -848,7 +896,7 @@ class RingElement(BaseObject):
             rep = f'({self.tinyhand()})^(1/{k})'
 
         x = Symbol(rep)
-        P = self.ring[x]
+        _ = self.ring[x]
 
         if not return_all:
             root_kwargs['user_stop_func'] = lambda S: any(f.degree() == 1 for f in S)

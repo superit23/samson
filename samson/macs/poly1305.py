@@ -30,7 +30,7 @@ class Poly1305(MAC):
         Primitive.__init__(self)
 
         if clamp_r:
-            self.r = Poly1305._clamp_r(Bytes.wrap(r).change_byteorder()).to_int()
+            self.r = Poly1305._clamp_r(Bytes.wrap(r).change_byteorder('little')).to_int()
         else:
             self.r = Bytes.wrap(r, byteorder='little').int()
 
@@ -55,7 +55,7 @@ class Poly1305(MAC):
 
     @staticmethod
     def _chunk_message(message: bytes) -> list:
-        return [(chunk + b'\x01').zfill(17) for chunk in Bytes.wrap(message, byteorder='little').chunk(16, allow_partials=True)]
+        return [(chunk + b'\x01').zfill(17) for chunk in Bytes.wrap(message, byteorder='little').change_byteorder('little').chunk(16, allow_partials=True)]
 
 
     @staticmethod

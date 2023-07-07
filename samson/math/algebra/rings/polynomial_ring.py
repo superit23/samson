@@ -9,6 +9,7 @@ import math
 
 from samson.auxiliary.lazy_loader import LazyLoader
 _integer_ring  = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
+_sparse_vec    = LazyLoader('_sparse_vec', globals(), 'samson.math.sparse_vector')
 
 
 class PolynomialRing(Ring):
@@ -79,7 +80,7 @@ class PolynomialRing(Ring):
         Returns:
             Polynomial: Coerced element.
         """
-        from samson.math.sparse_vector import SparseVector
+        SparseVector = _sparse_vec.SparseVector
 
         type_o = type(other)
 
@@ -106,7 +107,7 @@ class PolynomialRing(Ring):
                 except CoercionException:
                     pass
 
-        elif type_o is Symbol and other.var and other.var.ring == self:
+        elif issubclass(type_o, Symbol) and other.var and other.var.ring == self:
             return other.var
 
         # Handle grounds
@@ -149,6 +150,10 @@ class PolynomialRing(Ring):
             RingElement: A generator element.
         """
         return self.symbol
+
+
+    def gens(self):
+        return super().gens() + [self(self.symbol)]
 
 
     def _find_irred_ZZ(self, n, elem_size, sparsity=None):
@@ -253,13 +258,14 @@ class PolynomialRing(Ring):
         Returns:
             RingElement: Random element of the algebra.
         """
-        if self.characteristic():
-            return super().random(size)
+        deg = size.degree()
 
+        if self.ring.characteristic() and self.ring.order() != oo:
+            max_val = None
         else:
-            deg = size.degree()
             max_val = max(size.coeffs.values.values()) + self.ring.one
-            return self([self.ring.random(max_val) for _ in range(deg)])
+
+        return self([self.ring.random(max_val) for _ in range(deg)])
 
 
     def interpolate(self, points: list) -> Polynomial:
@@ -284,7 +290,6 @@ class PolynomialRing(Ring):
             https://en.wikipedia.org/wiki/Polynomial_interpolation#Constructing_the_interpolation_polynomial
         """
         from samson.utilities.exceptions import NoSolutionException
-        from samson.math.algebra.fields.fraction_field import FractionField
         from samson.math.matrix import Matrix
 
         R = self.ring
@@ -292,7 +297,7 @@ class PolynomialRing(Ring):
 
         # Gaussian elimination requires a field
         if not_field:
-            R = FractionField(R)
+            R = R.fraction_field()
             points = [(R(x), R(y)) for x,y in points]
 
         # Build the Vandermonde matrix

@@ -3,6 +3,25 @@ from samson.utilities.bytes import Bytes
 from samson.core.primitives import EncryptionAlg, StreamingBlockCipherMode, Primitive, AuthenticatedCipher
 from samson.core.metadata import EphemeralType, EphemeralSpec, SizeType, SizeSpec, FrequencyType
 from samson.ace.decorators import register_primitive
+from samson.auxiliary.lazy_loader import LazyLoader
+from functools import lru_cache
+from typing import List
+
+_gf2 = LazyLoader('_gf2', globals(), 'samson.math.algebra.fields.gf2')
+_sym = LazyLoader('_sym', globals(), 'samson.math.symbols')
+
+@lru_cache(1)
+def _get_FF128():
+    return _gf2.GF2(128)
+
+
+def int_to_elem(a):
+    return _get_FF128()(int(''.join(bin(a)[2:].zfill(128)[::-1]), 2))
+
+def elem_to_int(a):
+    return int(bin(int(a))[2:].zfill(128)[::-1], 2)
+
+
 
 # Reference
 # https://github.com/tomato42/tlslite-ng/blob/master/tlslite/utils/aesgcm.py
@@ -175,17 +194,8 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
         Returns:
             list: List with entries formatted as (`H` "auth key", `t` "tag mask").
         """
-        from samson.math.algebra.all import GF2
         from samson.math.polynomial import Polynomial
         from samson.block_ciphers.rijndael import Rijndael
-
-        F = GF2(128)
-
-        def int_to_elem(a):
-            return F([int(bit) for bit in bin(a)[2:].zfill(128)])
-
-        def elem_to_int(a):
-            return int(bin(int(a))[2:].zfill(128)[::-1], 2)
 
         def gcm_to_poly(ad, ciphertext, tag):
             l = (len(ad) << (3 + 64)) | (len(ciphertext) << 3)
@@ -220,3 +230,61 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
 
 
     forbidden_attack = nonce_reuse_attack
+
+
+
+    @staticmethod
+    def generate_multi_collision(keys: List[bytes], nonce: bytes, tag: bytes) -> Bytes:
+        """
+        Given a list of keys, an arbitrary nonce, and an arbitrary tag, finds a single ciphertext that
+        decrypts correctly in all instances.
+
+        Parameters:
+            keys (List[bytes]): List of keys to find the collision for.
+            nonce      (bytes): Desired nonce.
+            tag        (bytes): Desired tags.
+
+        Returns:
+            Bytes: Valid ciphertext (no tag).
+
+        Examples:
+            >>> from samson.block_ciphers.modes.gcm import GCM
+            >>> from samson.utilities.bytes import Bytes
+            >>> K = [Bytes.random(16) for _ in range(10)]
+            >>> N = Bytes.random(12)
+            >>> T = Bytes.random(16)
+            >>> C = GCM.multi_collision(K, N, T)
+            >>> gcm = GCM(Rijndael(K[0]))
+            >>> bool(gcm.decrypt(N, C + T))
+            True
+
+
+        References:
+            https://www.usenix.org/system/files/sec21summer_len.pdf
+        """
+        from samson.block_ciphers.rijndael import Rijndael
+        Q = _get_FF128()[_sym.Symbol('x')]
+
+        K = [Bytes.wrap(k) for k in keys]
+        N = Bytes.wrap(nonce)
+        T = Bytes.wrap(tag)
+
+        L     = int_to_elem(len(K)*128)
+        Ti    = int_to_elem(T.int())
+        pairs = []
+
+        for k in K:
+            rij = Rijndael(k)
+            H   = rij.encrypt(Bytes().zfill(16)).int()
+            P   = rij.encrypt(N + Bytes(0x01).zfill(4)).int()
+
+            H   = int_to_elem(H)
+            y   = ((L*H) + int_to_elem(P) + Ti) * H**-2
+            pairs.append((H, y))
+
+
+        f = Q.interpolate(pairs)
+        x = list(f)
+        C = b''.join([Bytes(elem_to_int(c)) for c in x[::-1]])
+
+        return C

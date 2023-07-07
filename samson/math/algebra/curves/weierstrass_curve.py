@@ -442,7 +442,7 @@ class WeierstrassPoint(RingElement):
         F = E.ring
 
         k      = self.embedding_degree()
-        hom, K = F.extension(k)
+        hom, K = F.field_extension(k)
         E_     = WeierstrassCurve(hom(E.a), hom(E.b))
         Km     = K.mul_group()
 

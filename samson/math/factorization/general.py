@@ -375,14 +375,6 @@ def _lucas_factor(idx: int, visual: bool=False):
     return result
 
 
-# def _lucas_factor(idx: int):
-#     idx_facs = factor(idx)
-#     pow2     = 2**idx_facs[2]
-#     odd_facs = idx_facs // pow2
-
-#     for div in sorted(odd_facs.divisors()):
-#         div_facs = factor(lucas_number(pow2*div.recombine()))
-
 
 def _modular_lucas(v: int, a: int, n: int) -> int:
     """
@@ -665,7 +657,7 @@ def factor(n: int, use_trial: bool=True, limit: int=1000, use_rho: bool=True, us
         ecm_attempts          (int): Maximum number of ECM attempts before giving up.
         perfect_power_checks (bool): Whether or not to check for perfect powers.
         mersenne_check       (bool): Whether or not to check if `n` is a Mersenne number and factor accordingly (see `_mersenne_factor`).
-        fibonacci_check      (bool): Whether or not to check if `n` is a Fibonacii number and factor accordingly (see `_fib_factor`).
+        fibonacci_check      (bool): Whether or not to check if `n` is a Fibonacci number and factor accordingly (see `_fib_factor`).
         visual               (bool): Whether or not to display a progress bar.
         reraise_interrupt    (bool): Whether or not to reraise a KeyboardInterrupt.
         user_stop_func       (func): A function that takes in (`n`, facs) and returns True if the user wants to stop factoring.

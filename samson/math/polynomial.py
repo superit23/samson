@@ -1,6 +1,6 @@
 from samson.utilities.exceptions import NoSolutionException, NotInvertibleException
 from samson.math.algebra.rings.ring import Ring, RingElement
-from samson.math.general import square_and_mul, gcd, kth_root, coppersmiths, product, cyclotomic_polynomial, next_prime
+from samson.math.general import square_and_mul, gcd, kth_root, coppersmiths, product, cyclotomic_polynomial, next_prime, poly_to_int, frobenius_map, crt, frobenius_monomial_base, batch_gcd
 from samson.math.factorization.general import factor as factor_int, pk_1_smallest_divisor
 from samson.math.factorization.factors import Factors
 from samson.math.sparse_vector import SparseVector
@@ -12,6 +12,7 @@ from samson.utilities.runtime import RUNTIME
 from copy import deepcopy
 from types import FunctionType
 import itertools
+import math
 
 from samson.auxiliary.lazy_loader import LazyLoader
 _integer_ring  = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
@@ -19,6 +20,10 @@ _symbol        = LazyLoader('_symbol', globals(), 'samson.math.symbols')
 _matrix        = LazyLoader('_matrix', globals(), 'samson.math.matrix')
 _gss           = LazyLoader('_gss', globals(), 'samson.math.fft.gss')
 _ntt           = LazyLoader('_ntt', globals(), 'samson.math.fft.ntt')
+_real          = LazyLoader('_real', globals(), 'samson.math.algebra.fields.real_field')
+_complex       = LazyLoader('_complex', globals(), 'samson.math.algebra.fields.complex_field')
+_padic_int     = LazyLoader('_padic_int', globals(), 'samson.math.algebra.rings.padic_integers')
+_padic_num     = LazyLoader('_padic_num', globals(), 'samson.math.algebra.rings.padic_numbers')
 
 
 
@@ -55,13 +60,18 @@ class Polynomial(RingElement):
 
         if c_type in [list, tuple, dict]:
             if c_type is dict or (len(coeffs) > 0 and type(coeffs[0]) is tuple):
-                vec = coeffs
 
                 if not self.coeff_ring:
                     if c_type is dict:
                         self.coeff_ring = list(coeffs.values())[0].ring
                     else:
                         self.coeff_ring = coeffs[0][1].ring
+
+                if c_type is dict:
+                    coeffs = list(coeffs.items())
+
+                # TODO: Do autopromotion?
+                vec = [(i, self.coeff_ring(c)) for i,c in coeffs]
 
             else:
                 if not self.coeff_ring:
@@ -147,7 +157,6 @@ class Polynomial(RingElement):
 
 
     def __str__(self):
-        from samson.utilities.runtime import RUNTIME
         return RUNTIME.default_short_printer(self)
 
 
@@ -233,7 +242,7 @@ class Polynomial(RingElement):
             return self.coeff_ring.zero
 
 
-    def evaluate(self, val: RingElement=None, **kwargs) -> RingElement:
+    def evaluate(self, val: RingElement=None, top_ring: Ring=None, **kwargs) -> RingElement:
         """
         Evaluates the `Polynomial` at `val` using Horner's method.
 
@@ -259,7 +268,7 @@ class Polynomial(RingElement):
 
                 for k,v in coeffs.values.items():
                     coeffs.values[k] = val.ring(v)
-            
+
 
             for idx, c in coeffs.values.items()[::-1]:
                 total *= x**(last_idx-idx)
@@ -281,7 +290,8 @@ class Polynomial(RingElement):
                 return self_eval
 
             else:
-                return self._create_poly({idx: coeff(**kwargs) for idx, coeff in self.coeffs.values.items()})
+                top_ring = top_ring or self.ring
+                return self._create_poly({idx: coeff(top_ring=top_ring, **kwargs) for idx, coeff in self.coeffs.values.items()}, top_ring=top_ring)
 
         else:
             raise ValueError('Either "val" or "kwargs" must be specified')
@@ -353,16 +363,17 @@ class Polynomial(RingElement):
             https://math.stackexchange.com/questions/170128/roots-of-a-polynomial-mod-n
         """
         ZZ = _integer_ring.ZZ
-        from samson.math.algebra.rings.padic_integers import Zp
-        from samson.math.algebra.rings.padic_numbers import PAdicNumberField
-        from samson.math.general import frobenius_map
-        from samson.math.symbols import oo
+        oo = _symbol.oo
+        Zp = _padic_int.Zp
+        PAdicNumberField = _padic_num.PAdicNumberField
 
         R = self.coeff_ring
         is_field = R.is_field()
 
+        if not self:
+            return []
 
-        if type(R) in [Zp, PAdicNumberField]:
+        if type(R) in (Zp, PAdicNumberField):
             roots = self.change_ring(ZZ).hensel_lift(R.p, R.prec, use_padic=True, use_number_field=type(R) == PAdicNumberField)
             return [r for r in roots if not self(r)]
     
@@ -377,20 +388,18 @@ class Polynomial(RingElement):
                 facs = gcd(frob - x, self).factor(**factor_kwargs)
             else:
                 facs = self.factor(**factor_kwargs)
-            return [-fac.monic().coeffs[0] for fac in facs.keys() if fac.degree() == 1]
+            return [-fac.monic().coeffs[0] for fac in facs.keys() if fac.degree() == 1 and fac.LC().is_invertible()]
 
 
         elif R.order() != oo:
-            from samson.math.general import crt
-
             all_facs = []
             results  = []
             q_facs   = R.quotient.factor()
 
             if use_hensel or len(q_facs) == 1:
                 for fac, e in q_facs.items():
-                    Q      = ZZ/ZZ(fac**e)
-                    nroots = [Q(r) for r in self.change_ring(ZZ).hensel_lift(fac, e, use_padic=False)]
+                    Q      = fac.ring/fac.ring(fac**e)
+                    nroots = [Q(r) for r in self.change_ring(fac.ring).hensel_lift(fac, e, use_padic=False)]
                     if nroots:
                         all_facs.append(nroots)
 
@@ -405,7 +414,7 @@ class Polynomial(RingElement):
                 P = int(product(q_facs))
 
                 for fac in q_facs:
-                    nroots = self.change_ring(ZZ/fac).roots()
+                    nroots = self.change_ring(fac.ring/fac).roots()
                     if nroots:
                         all_facs.append(nroots)
 
@@ -497,7 +506,6 @@ class Polynomial(RingElement):
             https://en.wikipedia.org/wiki/Hensel%27s_lemma
         """
         ZZ = _integer_ring.ZZ
-        from samson.math.algebra.rings.padic_integers import Zp
 
         if not ZZ(p).is_prime():
             raise ValueError("'p' must be prime")
@@ -508,7 +516,7 @@ class Polynomial(RingElement):
 
         roots = last_roots or self.change_ring(ZZ/ZZ(p)).roots()
         for e in range(k if last_roots else 2, k+1):
-            R = Zp(p, e)
+            R = _padic_int.Zp(p, e)
 
             if use_number_field:
                 R = R.fraction_field()
@@ -542,8 +550,19 @@ class Polynomial(RingElement):
         return SparseVector(vec, self.coeff_ring.zero, allow_virtual_len=True)
 
 
-    def _create_poly(self, vec):
-        return Polynomial(vec, coeff_ring=self.coeff_ring, ring=self.ring, symbol=self.symbol)
+    def _create_poly(self, vec, top_ring: Ring=None):
+        if top_ring:
+            ring = top_ring
+        else:
+            ring = self.ring
+
+        # This is a bit weird, but this is here incase you have a multivariate polynomial
+        # and you're evaluating a lower variable at a higher one, e.g. a0=a7
+        # This is super specific on purpose to prevent unexpected behavior in normal situations
+        if top_ring and type(vec) is dict and len(vec) and list(vec.values())[0].ring == top_ring:
+            return sum(c << idx for idx,c in vec.items())
+        else:
+            return Polynomial(vec, coeff_ring=ring.ring, ring=ring, symbol=ring.symbol)
 
 
     def map_coeffs(self, func: FunctionType) -> 'Polynomial':
@@ -762,8 +781,6 @@ class Polynomial(RingElement):
         References:
             https://en.wikipedia.org/wiki/Factorization_of_polynomials_over_finite_fields#Distinct-degree_factorization
         """
-        from samson.math.general import frobenius_map, frobenius_monomial_base
-
         f = self
         f_star = f
         S = []
@@ -821,8 +838,7 @@ class Polynomial(RingElement):
         Returns:
             list: Equal-degree factors of self.
         """
-        from samson.math.symbols import oo
-        from samson.math.general import frobenius_map, frobenius_monomial_base
+        oo = _symbol.oo
 
         f = self.monic()
         n = f.degree()
@@ -932,9 +948,7 @@ class Polynomial(RingElement):
         """
         References:
             https://en.wikipedia.org/wiki/Perron%27s_irreducibility_criterion
-        """
-        from samson.math.general import batch_gcd
-    
+        """    
         ZZ   = _integer_ring.ZZ
         one  = self.coeff_ring.one
         zero = self.coeff_ring.zero
@@ -1042,7 +1056,6 @@ class Polynomial(RingElement):
             https://en.wikipedia.org/wiki/Irreducible_polynomial#Over_the_integers_and_finite_field
             https://www.imomath.com/index.php?options=623&lmm=0#:~:text=Table%20of%20contents)-,Irreducibility,nonconstant%20polynomials%20with%20integer%20coefficients.&text=Every%20quadratic%20or%20cubic%20polynomial,3%E2%88%924x%2B1.
         """
-        from samson.math.general import frobenius_map, frobenius_monomial_base, batch_gcd
         ZZ = _integer_ring.ZZ
 
         n = self.degree()
@@ -1167,8 +1180,6 @@ class Polynomial(RingElement):
         References:
             https://en.wikipedia.org/wiki/Factorization_of_polynomials#Factoring_univariate_polynomials_over_the_integers
         """
-        import math
-
         # 'f' must be content-free
         f = self // self.content()
         g = f._ZZ_to_lossless_Fp()
@@ -1248,9 +1259,11 @@ class Polynomial(RingElement):
         References:
             https://github.com/afoures/aberth-method/blob/master/aberthMethod.py
         """
-        ZZ = _integer_ring.ZZ
-        from samson.math.all import QQ, Symbol, factor, RealField, ComplexField
-        from samson.math.factorization.factors import Factors
+        ZZ           = _integer_ring.ZZ
+        QQ           = _integer_ring._get_QQ()
+        Symbol       = _symbol.Symbol
+        ComplexField = _complex.ComplexField
+        RealField    = _real.RealField
 
         p = self
         if not p:
@@ -1312,7 +1325,7 @@ class Polynomial(RingElement):
             # This algorithm is simple:
             # 1) If the polynomial is degree 2 or 3, there is an explicit formula to find the roots
             # 2) If the degree > 3, use the derivative to find monotonic sections
-            # 3) Use netwon's algorithm at those local extrama in hopes of converging to zero
+            # 3) Use Netwon's algorithm at those local extrema in hopes of converging to zero
             # 4) Upon finding a root, factor it out and recurse
             def complex_fac(p):
                 if p.degree() == 2:
@@ -1342,50 +1355,24 @@ class Polynomial(RingElement):
                         return upper, lower
 
 
-                    def init_roots(f):
-                        CC = f.coeff_ring
-                        RR = CC(0).real().ring
-                        degree = f.degree()
-                        upper, lower = get_bounds(f)
+                    f  = self
+                    CC = f.coeff_ring
+                    RR = CC(0).real().ring
+                    degree = f.degree()
+                    upper, lower = get_bounds(f)
+                    x = f.symbol
+                    roots = []
 
-                        roots = []
-                        for _ in range(degree):
-                            radius = RR.random_between(lower, upper)
-                            angle  = RR.random_between(0, RR.pi*2)
-                            root   = CC((radius * angle.cos(), radius * angle.sin()))
-                            roots.append(root)
-
-                        return roots
-
-
-                    def aberth_roots(f):
-                        roots = init_roots(f)
-                        R     = f.coeff_ring
-                        eps   = R(1)/2**R.prec
-                        df    = f.derivative()
-
-                        while True:
-                            valid = 0
-                            for k, r in enumerate(roots):
-                                ratio  = f(r) / df(r)
-                                offset = ratio / (1 - (ratio * sum(1/(r - x) 
-                                                for j, x in enumerate(roots) if j != k)))
-                                
-
-                                z = f(r+eps) / f(r-eps)
-                                condition = abs((z.real()**2 + z.imag()**2).sqrt() - 1)
-
-                                if condition > 1e-3 or offset.is_effectively_zero():
-                                    valid += 1
-
-                                roots[k] -= offset
-
-                            if valid == len(roots):
-                                break
-
-                        return roots
+                    for _ in range(degree-3):
+                        radius = RR.random_between(lower, upper)
+                        angle  = RR.random_between(0, RR.pi*2)
+                        root   = CC((radius * angle.cos(), radius * angle.sin()))
+                        
+                        root = f.newton(root)
+                        roots.append(root)
+                        f //= x - root
                     
-                    roots = aberth_roots(p)
+                    roots.extend(complex_fac(f))
                 
                 return roots
 
@@ -1488,7 +1475,7 @@ class Polynomial(RingElement):
         elif d == 3:
             a, b, c, d = list(self)[::-1]
             return b**2*c**2 - 4*a*c**3 - 4*b**3*d - 27*a**2*d**2 + 18*a*b*c*d
-        
+
         elif d == 4:
             a, b, c, d, e = list(self)[::-1]
             f = 256*a**3*e**3 - 192*a**2*b*d*e**2 - 128*a**2*c**2*e**2 + 144*a**2*c*d**2*e
@@ -1497,6 +1484,20 @@ class Polynomial(RingElement):
             i = -4*b**3*d**3 - 4*b**2*c**3*e + b**2*c**2*d**2
 
             return f + g + h + i
+
+        elif d == 5:
+            a,b,c,d,e,f = list(self)[::-1]
+            p = (5*a*c - 2*b**2)/(5*a**2)
+            q = (25*a**2*d - 15*a*b*c + 4*b**3) / (25*a**3)
+            r = (125*a**3*e - 50*a**2*b*d + 15*a*b**2*c - 3*b**4) / (125*a**4)
+            s = (3125*a**4*f - 625*a**3*b*e + 125*a**2*b**2*d - 25*a*b**3*c + 4*b**5) / (3125*a**5)
+
+            d0 = -128*p**2*r**4 + 3125*s**4 - 72*p**4*q*r*s + 560*p**2*q*r**2*s + 16*p**4*r**3 + 256*r**5 + 108*p**5*s**2
+            d1 = -1600*q*r**3*s + 144*p*q**2*r**3 - 900*p**3*r*s**2 + 2000*p*r**2*s**2 - 3750*p*q*s**3 + 825*p**2*q**2*s**2
+            d2 = 2250*q**2*r*s**2 + 108*q**5*s - 27*q**4*r**2 - 630*p*q**3*r*s + 16*p**3*q**3*s - 4*p**3*q**2*r**2
+
+            return d0 + d1 + d2
+
 
         else:
             raise ValueError(f"Discriminant is not defined for polynomials of degree {d}")
@@ -1820,7 +1821,6 @@ class Polynomial(RingElement):
 
 
     def __int__(self) -> int:
-        from samson.math.general import poly_to_int
         if self.degree() == 0:
             return int(self[0])
         else:
@@ -1859,11 +1859,17 @@ class Polynomial(RingElement):
 
 
     def __lshift__(self, num: int):
+        if num < 0:
+            return self >> -num
+
         return self._create_poly(self._create_sparse([(idx+num, coeff) for idx, coeff in self.coeffs]))
 
 
     # Note: SparseVector automatically shifts the indices down to remain transparent with lists
     def __rshift__(self, num: int):
+        if num < 0:
+            return self << -num
+
         return self._create_poly(self.coeffs[num:])
 
 

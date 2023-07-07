@@ -2,7 +2,7 @@ from samson.math.general import mod_inv
 from samson.math.algebra.fields.field import Field, FieldElement
 from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.algebra.rings.integer_ring import ZZ
-from samson.math.general import mod_inv
+from samson.math.symbols import oo
 from fractions import Fraction
 
 
@@ -317,8 +317,13 @@ class FractionField(Field):
         return FractionFieldElement(*result, self)
 
 
-    def extension(self, degree: int) -> ('Map', 'Field'):
+    def field_extension(self, degree: int) -> ('Map', 'Field'):
         if self.ring == ZZ:
-            return ZZ.extension(degree).fraction_field()
+            Q = ZZ.field_extension(degree).fraction_field()
+            return Q._coerce_map(self), Q
         else:
-            return super().extension(degree)
+            return super().field_extension(degree)
+
+
+    def _base_ext_degree(self):
+        return oo

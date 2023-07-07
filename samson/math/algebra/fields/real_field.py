@@ -147,6 +147,9 @@ class RealElement(FieldElement):
         return self.field(self.field.ctx.ei(self.val))
 
 
+    def __bool__(self):
+        return not self.is_effectively_zero()
+
 
 class RealField(Field):
 
@@ -285,15 +288,13 @@ class RealField(Field):
             
             elif other.ring == ZZ.fraction_field():
                 return self(int(other.numerator))/int(other.denominator)
-            
-            raise CoercionException(other)
 
 
-        else:
-            try:
-                return RealElement(self.ctx.mpf(other), self)
-            except (ValueError, TypeError) as e:
-                raise CoercionException(other) from e
+        try:
+            other = float(other)
+            return RealElement(self.ctx.mpf(other), self)
+        except (ValueError, TypeError) as e:
+            raise CoercionException(other) from e
 
 
 

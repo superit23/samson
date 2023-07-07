@@ -1,4 +1,4 @@
-from samson.math.general import miller_rabin, is_prime, totient, cyclotomic_polynomial
+from samson.math.general import miller_rabin, is_prime, totient, cyclotomic_polynomial, gcd
 from samson.math.prime_gen import PrimeEngine
 from samson.math.factorization.factors import Factors
 from samson.utilities.exceptions import SearchspaceExhaustedException
@@ -251,5 +251,5 @@ def find_pseudo5(bits):
 def find_pseudo6(bits):
     if bits < 40:
         for n in range(2**(bits-1)+1, 2**bits, 2):
-            if is_strong_pseudo(n):
+            if is_strong_pseudoprime(n):
                 return n
