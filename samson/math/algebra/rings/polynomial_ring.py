@@ -1,15 +1,15 @@
 from samson.math.algebra.rings.ring import RingElement, Ring
-from samson.utilities.exceptions import CoercionException, ProbabilisticFailureException
+from samson.utilities.exceptions import CoercionException, ProbabilisticFailureException, NoSolutionException
 from samson.math.polynomial import Polynomial
 from samson.math.symbols import Symbol, oo
-from samson.math.general import random_int, is_prime, random_int_between, next_prime, int_to_poly
+from samson.math.general import random_int, is_prime, random_int_between, next_prime, int_to_poly, batch_inv, product
 from samson.math.factorization.general import factor
 from samson.auxiliary.gf2_irreducible_poly_db import build_gf2_irreducible_poly
 import math
 
 from samson.auxiliary.lazy_loader import LazyLoader
-_integer_ring  = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
-_sparse_vec    = LazyLoader('_sparse_vec', globals(), 'samson.math.sparse_vector')
+_integer_ring = LazyLoader('_integer_ring', globals(), 'samson.math.algebra.rings.integer_ring')
+_sparse_vec   = LazyLoader('_sparse_vec', globals(), 'samson.math.sparse_vector')
 
 
 class PolynomialRing(Ring):
@@ -289,7 +289,19 @@ class PolynomialRing(Ring):
         References:
             https://en.wikipedia.org/wiki/Polynomial_interpolation#Constructing_the_interpolation_polynomial
         """
-        from samson.utilities.exceptions import NoSolutionException
+        if len(points) < 48:
+            return self._vandermonde_interpolate(points)
+        else:
+            return self._lagrange_interpolate(points)
+
+
+    def _lagrange_interpolate(self, points: list):
+        nums   = [product([self.symbol-j for j, _ in points if i != j]) for i,_ in points]
+        denoms = batch_inv([product([i-j for j, _ in points if i != j]) for i,_ in points])
+        return sum([f*d*n for n,d,(_,f) in zip(nums, denoms, points)])
+
+
+    def _vandermonde_interpolate(self, points: list):
         from samson.math.matrix import Matrix
 
         R = self.ring

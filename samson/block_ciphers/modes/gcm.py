@@ -253,7 +253,7 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
             >>> K = [Bytes.random(16) for _ in range(10)]
             >>> N = Bytes.random(12)
             >>> T = Bytes.random(16)
-            >>> C = GCM.multi_collision(K, N, T)
+            >>> C = GCM.generate_multi_collision(K, N, T)
             >>> gcm = GCM(Rijndael(K[0]))
             >>> bool(gcm.decrypt(N, C + T))
             True

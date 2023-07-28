@@ -480,9 +480,10 @@ class RingElement(BaseObject):
 
 
     def __mul__(self, other: 'RingElement') -> 'RingElement':
-        gmul = self.ground_mul(other)
-        if gmul is not None:
-            return gmul
+        # TODO: Is this necessary at all?
+        # gmul = self.ground_mul(other)
+        # if gmul is not None:
+        #     return gmul
 
 
         if hasattr(other, 'ring'):

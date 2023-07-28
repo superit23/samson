@@ -7,6 +7,7 @@ from .factorization.all import *
 from .linear_recurrence import LinearRecurrence
 from .map import Map
 from .matrix import Matrix
+from .multivariate_polynomial import MultivariatePolynomial, MultivariatePolynomialRing, MonomialOrdering
 from .polynomial import Polynomial
 from .prime_gen import PrimeEngine
 from .snfs import snfs

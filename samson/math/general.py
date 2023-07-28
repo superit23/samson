@@ -1104,11 +1104,22 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
     if system_matrix.num_rows != rhs.num_rows:
         raise ValueError(f"Matrices must have the same number of rows: ({system_matrix.num_rows}x{system_matrix.num_cols} vs {rhs.num_rows}x{rhs.num_cols})")
 
-    A = deepcopy(system_matrix).row_join(rhs)
+    A = deepcopy(system_matrix)
+    R = A.coeff_ring
+
+    # Force square
+    if A.num_rows < A.num_cols:
+        A = A.col_join(Matrix([[R.zero]*A.num_cols]*(A.num_rows-A.num_cols), R))
+
+    elif A.num_cols < A.num_rows:
+        A = A.T
+        A = A.col_join(Matrix([[R.zero]*A.num_cols]*(A.num_cols-A.num_rows), R))
+        A = A.T
+
+    A = A.row_join(rhs)
 
     n = A.num_rows
     m = A.num_cols
-    R = A.coeff_ring
     l = min(n,m)
 
     # Forward elimination
@@ -1258,7 +1269,6 @@ def lll(in_basis: 'Matrix', delta: float=0.75) -> 'Matrix':
         https://github.com/orisano/olll/blob/master/olll.py
         https://en.wikipedia.org/wiki/Lenstra%E2%80%93Lenstra%E2%80%93Lov%C3%A1sz_lattice_basis_reduction_algorithm
     """
-    from samson.math.all import QQ
     Matrix = _mat.Matrix
 
     # Prepare ring and basis
