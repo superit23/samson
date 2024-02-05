@@ -43,15 +43,18 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
     AUTH_TAG_SIZE   = SizeSpec(size_type=SizeType.SINGLE, sizes=128)
     USAGE_FREQUENCY = FrequencyType.PROLIFIC
 
-    def __init__(self, cipher: EncryptionAlg, H: int=None):
+    def __init__(self, cipher: EncryptionAlg, H: int=None, tag_length: int=16):
         """
         Parameters:
             cipher (EncryptionAlg): Instantiated encryption algorithm.
+            H                (int): Authentication key.
+            tag_length       (int): Length of tag (defaults to 16).
         """
         Primitive.__init__(self)
-        self.cipher = cipher
-        self.H      = H or self.cipher.encrypt(b'\x00' * 16).int()
-        self.ctr    = CTR(self.cipher, b'\x00' * 8)
+        self.cipher     = cipher
+        self.H          = H or self.cipher.encrypt(b'\x00' * 16).int()
+        self.ctr        = CTR(self.cipher, b'\x00' * 8)
+        self.tag_length = tag_length
 
         # Precompute the product table
         self.product_table = [0] * 16
@@ -63,7 +66,7 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
 
 
     def __reprdir__(self):
-        return ['cipher', 'H', 'ctr']
+        return ['cipher', 'H', 'tag_length', 'ctr']
 
 
     def clock_ctr(self, nonce: bytes) -> Bytes:
@@ -99,7 +102,7 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
         ciphertext = self.ctr.encrypt(plaintext)
         tag        = self.auth(ciphertext, data, tag_mask)
 
-        return ciphertext + tag
+        return ciphertext + tag[:self.tag_length]
 
 
 
@@ -116,11 +119,11 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
             Bytes: Resulting plaintext.
         """
         authed_ciphertext    = Bytes.wrap(authed_ciphertext)
-        ciphertext, orig_tag = authed_ciphertext[:-16], authed_ciphertext[-16:]
+        ciphertext, orig_tag = authed_ciphertext[:-self.tag_length], authed_ciphertext[-self.tag_length:]
 
         tag_mask = self.clock_ctr(nonce)
         data     = Bytes.wrap(data)
-        tag      = self.auth(ciphertext, data, tag_mask)
+        tag      = self.auth(ciphertext, data, tag_mask)[:self.tag_length]
 
         self.verify_tag(tag, orig_tag)
 

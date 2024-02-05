@@ -1,4 +1,4 @@
-from samson.math.general import sieve_of_eratosthenes_lazy, legendre, ResidueSymbol, kth_root, tonelli, gcd, is_prime, batch_gcd, random_int_between, mod_inv
+from samson.math.general import sieve_of_eratosthenes_lazy, legendre, ResidueSymbol, kth_root, tonelli, gcd, is_prime, batch_gcd, random_int_between, mod_inv, square_and_mul
 from samson.math.polynomial import Polynomial
 from samson.math.matrix import Matrix
 from samson.math.symbols import Symbol
@@ -6,6 +6,7 @@ from samson.math.algebra.rings.integer_ring import ZZ
 from samson.math.factorization.factors import Factors
 from samson.math.factorization.general import trial_division
 from samson.math.sparse_vector import SparseVector
+from samson.analysis.general import parity
 from samson.auxiliary.complexity import add_complexity, KnownComplexities
 from tqdm import tqdm
 import math
@@ -85,8 +86,19 @@ class BMatrix(object):
     def __getitem__(self, idx):
         i, j = idx
         return self.rows[i] >> j & 1
+    
+
+    def __mul__(self, other):
+        ot = other.T
+        return BMatrix([int(''.join([str(parity(r & b1)) for b1 in ot.rows])[::-1], 2) for r in self.rows], num_cols=self.num_cols)
 
 
+    def __pow__(self, exp):
+        return square_and_mul(self, exp, BMatrix([2**i for i in range(self.num_cols)], num_cols=self.num_cols))
+
+
+    def __eq__(self, other):
+        return self.rows == other.rows
 
 
 ###############

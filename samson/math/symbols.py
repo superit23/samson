@@ -220,7 +220,7 @@ class Symbol(Polynomial):
 
 
     def __pow__(self, power):
-        poly = self.var._create_poly({power: self.ring.ring.one})
+        poly = self.ring._create_poly({power: self.ring.ring.one})
         return self.__top_coerce(poly)[1]
 
 

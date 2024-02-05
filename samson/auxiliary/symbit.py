@@ -1,5 +1,6 @@
 from samson.core.base_object import BaseObject
 from samson.math.polynomial import Polynomial
+from samson.math.algebra.rings.polynomial_ring import PolynomialRing
 from samson.math.algebra.rings.integer_ring import ZZ
 from samson.math.symbols import Symbol
 from samson.utilities.bytes import Bytes
@@ -442,7 +443,15 @@ class FixedBitVector(BaseObject):
 
 
     def is_constant(self):
-        return all((s.value if hasattr(s, 'value') else s.val) in ZZ for s in self.symbols)
+        for s in self.symbols:
+            curr = s.value
+            while type(curr.ring) is PolynomialRing:
+                if curr.degree():
+                    return False
+                
+                curr = curr[0]
+    
+        return True
     
 
     def int(self):

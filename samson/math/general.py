@@ -1109,7 +1109,7 @@ def gaussian_elimination(system_matrix: 'Matrix', rhs: 'Matrix') -> 'Matrix':
 
     # Force square
     if A.num_rows < A.num_cols:
-        A = A.col_join(Matrix([[R.zero]*A.num_cols]*(A.num_rows-A.num_cols), R))
+        A = A.col_join(Matrix([[R.zero]*A.num_cols]*(A.num_cols-A.num_rows), R))
 
     elif A.num_cols < A.num_rows:
         A = A.T

@@ -50,6 +50,21 @@ class PolynomialRing(Ring):
         return oo
 
 
+    def _create_poly(self, vec, top_ring: Ring=None):
+        if top_ring:
+            ring = top_ring
+        else:
+            ring = self.ring
+
+        # This is a bit weird, but this is here incase you have a multivariate polynomial
+        # and you're evaluating a lower variable at a higher one, e.g. a0=a7
+        # This is super specific on purpose to prevent unexpected behavior in normal situations
+        if top_ring and type(vec) is dict and len(vec) and list(vec.values())[0].ring == top_ring:
+            return sum(c << idx for idx,c in vec.items())
+        else:
+            return Polynomial(vec, coeff_ring=ring, ring=self, symbol=self.symbol)
+
+
     def __reprdir__(self):
         return ['ring']
 
@@ -296,6 +311,7 @@ class PolynomialRing(Ring):
 
 
     def _lagrange_interpolate(self, points: list):
+        points = [(self.ring(a), self.ring(b)) for a,b in points]
         nums   = [product([self.symbol-j for j, _ in points if i != j]) for i,_ in points]
         denoms = batch_inv([product([i-j for j, _ in points if i != j]) for i,_ in points])
         return sum([f*d*n for n,d,(_,f) in zip(nums, denoms, points)])

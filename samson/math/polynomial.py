@@ -180,7 +180,7 @@ class Polynomial(RingElement):
     def __getitem__(self, idx: int) -> object:
         vec = self.coeffs[idx]
         if type(vec) is SparseVector:
-            return self._create_poly(vec)
+            return self.ring._create_poly(vec)
         else:
             return vec
 
@@ -291,7 +291,7 @@ class Polynomial(RingElement):
 
             else:
                 top_ring = top_ring or self.ring
-                return self._create_poly({idx: coeff(top_ring=top_ring, **kwargs) for idx, coeff in self.coeffs.values.items()}, top_ring=top_ring)
+                return self.ring._create_poly({idx: coeff(top_ring=top_ring, **kwargs) for idx, coeff in self.coeffs.values.items()}, top_ring=top_ring)
 
         else:
             raise ValueError('Either "val" or "kwargs" must be specified')
@@ -322,7 +322,7 @@ class Polynomial(RingElement):
 
     def reverse(self) -> 'Polynomial':
         n = self.degree()
-        return self._create_poly({n-idx: c for idx, c in self.coeffs.values.items()})
+        return self.ring._create_poly({n-idx: c for idx, c in self.coeffs.values.items()})
 
 
     def newton(self, x0, max_tries: int=10000):
@@ -550,23 +550,9 @@ class Polynomial(RingElement):
         return SparseVector(vec, self.coeff_ring.zero, allow_virtual_len=True)
 
 
-    def _create_poly(self, vec, top_ring: Ring=None):
-        if top_ring:
-            ring = top_ring
-        else:
-            ring = self.ring
-
-        # This is a bit weird, but this is here incase you have a multivariate polynomial
-        # and you're evaluating a lower variable at a higher one, e.g. a0=a7
-        # This is super specific on purpose to prevent unexpected behavior in normal situations
-        if top_ring and type(vec) is dict and len(vec) and list(vec.values())[0].ring == top_ring:
-            return sum(c << idx for idx,c in vec.items())
-        else:
-            return Polynomial(vec, coeff_ring=ring.ring, ring=ring, symbol=ring.symbol)
-
 
     def map_coeffs(self, func: FunctionType) -> 'Polynomial':
-        return self._create_poly(self.coeffs.map(func))
+        return self.ring._create_poly(self.coeffs.map(func))
 
 
     def monic(self) -> 'Polynomial':
@@ -576,7 +562,7 @@ class Polynomial(RingElement):
         Returns:
             Polynomial: Monic representation of self.
         """
-        return self._create_poly([(idx, coeff / self.coeffs[-1]) for idx, coeff in self.coeffs])
+        return self.ring._create_poly([(idx, coeff / self.coeffs[-1]) for idx, coeff in self.coeffs])
 
 
     def is_monic(self) -> bool:
@@ -604,9 +590,9 @@ class Polynomial(RingElement):
             if n <= 0:
                 return self
             else:
-                return self._create_poly([(idx-1, coeff * idx) for idx, coeff in self.coeffs if idx != 0]).derivative(n-1)
+                return self.ring._create_poly([(idx-1, coeff * idx) for idx, coeff in self.coeffs if idx != 0]).derivative(n-1)
         else:
-            return self._create_poly([c.derivative(n=n, var=var) for c in self])
+            return self.ring._create_poly([c.derivative(n=n, var=var) for c in self])
 
 
     def integral(self, n: int=1) -> 'Polynomial':
@@ -622,7 +608,7 @@ class Polynomial(RingElement):
         if n <= 0:
             return self
         else:
-            return self._create_poly([(idx+1, coeff/(idx+1)) for idx, coeff in self.coeffs]).derivative(n-1)
+            return self.ring._create_poly([(idx+1, coeff/(idx+1)) for idx, coeff in self.coeffs]).derivative(n-1)
 
 
     def trunc_kth_root(self, k: int) -> 'Polynomial':
@@ -643,7 +629,7 @@ class Polynomial(RingElement):
             <Polynomial: x^2 + (2)*x, coeff_ring=ZZ>
 
         """
-        return self._create_poly([(idx // k, coeff) for idx, coeff in self.coeffs if not idx % k])
+        return self.ring._create_poly([(idx // k, coeff) for idx, coeff in self.coeffs if not idx % k])
 
 
     def trunc(self, mod: RingElement) -> 'Polynomial':
@@ -665,7 +651,7 @@ class Polynomial(RingElement):
             <Polynomial: (2)*x^5 + x^4 + (2)*x^2 + x + 1, coeff_ring=ZZ>
 
         """
-        return self._create_poly([(idx, coeff % mod) for idx, coeff in self.coeffs])
+        return self.ring._create_poly([(idx, coeff % mod) for idx, coeff in self.coeffs])
 
 
     def _yun_sff(self):
@@ -1688,7 +1674,7 @@ class Polynomial(RingElement):
             if not idx in self.coeffs:
                 vec[idx] = coeff
 
-        return self._create_poly(vec)
+        return self.ring._create_poly(vec)
 
 
     def __elemsub__(self, other: 'Polynomial') -> 'Polynomial':
@@ -1700,7 +1686,7 @@ class Polynomial(RingElement):
             if not idx in self.coeffs:
                 vec[idx] = -coeff
 
-        return self._create_poly(vec)
+        return self.ring._create_poly(vec)
 
 
     @RUNTIME.global_cache(8)
@@ -1738,7 +1724,7 @@ class Polynomial(RingElement):
                         new_coeffs[c] = coeff_h*coeff_g
 
 
-            poly = self._create_poly(self._create_sparse(new_coeffs))
+            poly = self.ring._create_poly(self._create_sparse(new_coeffs))
 
         else:
             # FFT conv
@@ -1788,7 +1774,7 @@ class Polynomial(RingElement):
 
             else:
                 # Convolve and reconstruct
-                poly = self._create_poly(_gss._convolution(list(small_self), list(small_other)))
+                poly = self.ring._create_poly(_gss._convolution(list(small_self), list(small_other)))
 
 
             # Add degree shifts back in
@@ -1805,7 +1791,7 @@ class Polynomial(RingElement):
 
 
     def __neg__(self) -> object:
-        return self._create_poly([(idx, -coeff) for idx, coeff in self.coeffs])
+        return self.ring._create_poly([(idx, -coeff) for idx, coeff in self.coeffs])
 
 
     def __floordiv__(self, other: 'Polynomial') -> 'Polynomial':
@@ -1862,7 +1848,7 @@ class Polynomial(RingElement):
         if num < 0:
             return self >> -num
 
-        return self._create_poly(self._create_sparse([(idx+num, coeff) for idx, coeff in self.coeffs]))
+        return self.ring._create_poly(self._create_sparse([(idx+num, coeff) for idx, coeff in self.coeffs]))
 
 
     # Note: SparseVector automatically shifts the indices down to remain transparent with lists
@@ -1870,7 +1856,7 @@ class Polynomial(RingElement):
         if num < 0:
             return self << -num
 
-        return self._create_poly(self.coeffs[num:])
+        return self.ring._create_poly(self.coeffs[num:])
 
 
     def is_invertible(self) -> bool:

@@ -480,12 +480,6 @@ class RingElement(BaseObject):
 
 
     def __mul__(self, other: 'RingElement') -> 'RingElement':
-        # TODO: Is this necessary at all?
-        # gmul = self.ground_mul(other)
-        # if gmul is not None:
-        #     return gmul
-
-
         if hasattr(other, 'ring'):
             if self.ring == other.ring:
                 return self.__elemmul__(other)
@@ -493,7 +487,14 @@ class RingElement(BaseObject):
             elif other.ring.is_superstructure_of(self.ring):
                 return other.ring(self) * other
 
-        return self.__elemmul__(self.ring.coerce(other))
+        try:
+            return self.__elemmul__(self.ring.coerce(other))
+        except Exception as e:
+            gmul = self.ground_mul(other)
+            if not gmul:
+                raise e
+            
+            return gmul
 
 
     __pow__ = square_and_mul

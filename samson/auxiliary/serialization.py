@@ -497,7 +497,7 @@ class SizedSerializable(BaseObject):
         cls.Int = Int
 
 
-        class List(Subtypable):
+        class SizedList(Subtypable):
             SUBTYPE = None
             val: list
 
@@ -552,7 +552,34 @@ class SizedSerializable(BaseObject):
                 self.val.append(item)
 
 
-        cls.List = List
+        cls.SizedList = SizedList
+
+
+
+        class GreedyList(SizedList):
+            SUBTYPE = None
+            val: list
+
+
+            def serialize(self):
+                data = b''
+                for v in self.val:
+                    data += v.serialize()
+                
+                return data
+
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                objs = []
+                while data:
+                    data, obj = cls.SUBTYPE.deserialize(data)
+                    objs.append(obj)
+            
+                return data, cls(objs)
+
+
+        cls.GreedyList = GreedyList
 
 
         class FixedBytes(Primitive, cls, Subscriptable):
@@ -694,6 +721,10 @@ class SizedSerializable(BaseObject):
             def _deserialize(cls, data, state=None):
                 data, obj = Bytes._deserialize(data)
                 return data, cls.SUBTYPE.from_bytes(obj)
+            
+
+            def native(self):
+                return self.val
 
 
         cls.Opaque = Opaque

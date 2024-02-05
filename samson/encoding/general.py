@@ -280,15 +280,16 @@ def oid_tuple_to_bytes(oid_tuple: tuple) -> bytes:
 
 from enum import Enum
 class PKIEncoding(Enum):
-    PKCS1     = 0
-    PKCS8     = 1
-    X509      = 2
-    X509_CERT = 3
-    OpenSSH   = 4
-    SSH2      = 5
-    JWK       = 6
-    DNS_KEY   = 7
-    X509_CSR  = 8
+    PKCS1        = 0
+    PKCS8        = 1
+    X509         = 2
+    X509_CERT    = 3
+    OpenSSH      = 4
+    OpenSSH_CERT = 6
+    SSH2         = 7
+    JWK          = 8
+    DNS_KEY      = 9
+    X509_CSR     = 10
 
 
 

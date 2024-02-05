@@ -46,7 +46,7 @@ def derive_pem_key(passphrase: bytes, salt: bytes, key_size: int) -> Bytes:
         passphrase (bytes): Passphrase.
         salt       (bytes): Salt.
         key_size     (int): Desired key size.
-    
+
     Returns:
         Bytes: Derived key.
     """

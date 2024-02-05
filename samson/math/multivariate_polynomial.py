@@ -5,6 +5,7 @@ from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.polynomial import Polynomial
 from samson.math.algebra.rings.polynomial_ring import PolynomialRing
 from samson.math.matrix import Matrix
+from samson.math.algebra.rings.integer_ring import ZZ
 from samson.core.base_object import BaseObject
 from enum import Enum
 
@@ -153,7 +154,7 @@ class MultivariatePolynomial(RingElement):
 
                 for e in range(len(self.symbols)):
                     exponent[e] += exp_vec_o[e]
-                
+    
 
                 exponent = tuple(exponent)
 
@@ -163,6 +164,21 @@ class MultivariatePolynomial(RingElement):
                     coeff_vector[exponent]  = coeff_s * coeff_o
         
         return self.ring._create_poly(coeff_vector)
+
+
+    def __elemdivmod__(self, other):
+        try:
+            return lead_red(self, other)
+        except ValueError:
+            return self.ring.zero, self
+
+
+    def __elemmod__(self, other):
+        return divmod(self, other)[1]
+
+
+    def __elemfloordiv__(self, other):
+        return divmod(self, other)[0]
 
 
     def __neg__(self):
@@ -228,10 +244,13 @@ class MultivariatePolynomial(RingElement):
 
     def __getitem__(self, idx):
         if type(idx) is tuple:
-            return self.coeffs[idx]
+            return self.coeffs.get(idx, self.coeff_ring.zero)
 
         elif type(idx) is Monomial:
-            return self.coeffs[idx.degrees]
+            return self.coeffs.get(idx.degrees, self.coeff_ring.zero)
+        
+        elif type(idx) is MultivariatePolynomial and len(idx.coeffs) == 1:
+            return self.coeffs.get(list(idx.coeffs)[0], self.coeff_ring.zero)
 
         else:
             raise ValueError
@@ -256,7 +275,32 @@ class MultivariatePolynomial(RingElement):
             return self*self.ring(~self.lc())
         else:
             return self
+    
 
+    def change_ring(self, ring):
+        MP = MultivariatePolynomialRing(ring=ring, symbols=self.symbols, ordering=self.ordering)
+        return MP({exp_vec: ring(coeff) for exp_vec, coeff in self.coeffs.items()})
+
+
+
+    def kronecker_substitution(self, symbol, max_degree, idx):
+        from copy import copy
+        f = self
+        p = f.coeff_ring.characteristic()
+        d = max_degree
+        n = 2*(p-1).bit_length()+(d).bit_length()
+        a = f.change_ring(ZZ)(**{symbol.repr: 2**(n*(idx+1))})
+
+        symbols = copy(self.symbols)
+        sym_idx = symbols.index(symbol)
+        symbols.remove(symbol)
+
+        MP = MultivariatePolynomialRing(ring=self.coeff_ring, symbols=symbols, ordering=self.ordering)
+        a.coeffs  = {tuple(exp[:sym_idx] + exp[sym_idx+1:]):coeff for exp,coeff in a.coeffs.items()}
+        a.ring    = MP
+        a.symbols = symbols
+        return a
+        
 
 
 
@@ -267,6 +311,10 @@ class MultivariatePolynomialRing(Ring):
         self.ordering = ordering
         self.one  = self(1)
         self.zero = self(0)
+
+        for sym in self.symbols:
+            sym.build(self)
+            sym.top_ring = self
     
 
     def __reprdir__(self):
@@ -280,6 +328,10 @@ class MultivariatePolynomialRing(Ring):
     def shorthand(self) -> str:
         return f'{self.ring.shorthand()}[{",".join([s.repr for s in self.symbols])}]'
     
+
+    def is_field(self):
+        return False
+
 
     def _create_poly(self, coeffs):
         return MultivariatePolynomial({k:v for k,v in coeffs.items() if v}, coeff_ring=self.ring, ring=self, symbols=self.symbols, ordering=self.ordering)
@@ -302,9 +354,9 @@ class MultivariatePolynomialRing(Ring):
 
 
         # Lift univariates in same ring to multivariate
-        elif type_o is Polynomial and self.ring.is_superstructure_of(other.ring.ring):
+        elif type_o is Polynomial and self.ring.is_superstructure_of(other.ring.ring):#s or other.coeff_ring.one in self.ring):
             sym_idx = self.symbols.index(other.symbol)
-            return self._create_poly({tuple([0]*sym_idx + [idx] + [0]*(len(self.symbols-sym_idx-1))): coeff for idx, coeff in other.coeffs.values.items()})
+            return self._create_poly({tuple([0]*sym_idx + [idx] + [0]*(len(self.symbols)-sym_idx-1)): coeff for idx, coeff in other.coeffs.values.items()})
 
         elif type_o is MultivariatePolynomial:
             if other.ring == self:
@@ -482,7 +534,7 @@ def buchberger(F):
     References:
         https://www.theoremoftheday.org/MathsStudyGroup/Buchberger.pdf
     """
-    G  = [_ for _ in F]
+    G  = [f for f in F if f]
     checked = set()
 
     while True:
@@ -538,19 +590,6 @@ def reduced_basis(B):
             if ret_to_top:
                 break
 
-        # for i,f in enumerate(Bp):
-        #     for j,g in enumerate(Bp):
-        #         if i != j:
-        #             try:
-        #                 h = lead_red(f,g).monic()
-        #                 try:
-        #                     B.remove(f)
-        #                 except ValueError:
-        #                     pass
-        #                 if h:
-        #                     B.append(h)
-        #             except ValueError:
-        #                 pass
         if B == Bp:
             return B
 
@@ -587,7 +626,7 @@ class GroebnerBasis(BaseObject):
 
         return comb
 
-    
+
     def generates(self, p):
         try:
             self.reduce(p)
@@ -604,10 +643,7 @@ class GroebnerBasis(BaseObject):
         for b in self.B:
             row = []
             for mon in mons:
-                try:
-                    row.append(b[mon])
-                except KeyError:
-                    row.append(R.zero)
+                row.append(b[mon])
             
             rows.append(row)
         

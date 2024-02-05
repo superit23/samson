@@ -10,7 +10,7 @@ class LinearRecurrence(BaseObject):
 
     @staticmethod
     def from_outputs(outputs, R=None):
-        R = R or outputs[0].R
+        R = R or outputs[0].ring
         outputs  = [R(o) for o in outputs]
         min_poly = berlekamp_massey(outputs, R)
         return LinearRecurrence(minimal_poly=min_poly, initial_states=outputs[:min_poly.degree()-1])

@@ -49,7 +49,7 @@ class DSAPrivateKey(object):
             value      (bytes): Value to encode.
             encryptor   (func): (Optional) Function to use as the encryptor.
             padding_size (int): The block size to pad to. Usually 8 unless you're encrypting.
-        
+
         Returns:
             Bytes: Packed bytes.
         """

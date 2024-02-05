@@ -27,6 +27,22 @@ class HKDF(KDF):
         return ['hash_obj', 'desired_len']
 
 
+    def extract(self, salt, ikm):
+        return HMAC(key=salt, hash_obj=self.hash_obj).generate(ikm)
+
+
+    def expand(self, prk, info, L):
+        hmac = HMAC(key=prk, hash_obj=self.hash_obj)
+
+        new_key = b''
+        t       = b''
+        for i in range(math.ceil(self.desired_len / (self.hash_obj.digest_size))):
+            t        = hmac.generate(t + info + bytes([i + 1]))
+            new_key += t
+
+        return new_key[:self.desired_len]
+
+
     def derive(self, key: bytes, salt: bytes, info: bytes=b'') -> Bytes:
         """
         Derives a key.
@@ -39,13 +55,5 @@ class HKDF(KDF):
         Returns:
             Bytes: Derived key.
         """
-        prk  = HMAC(key=salt, hash_obj=self.hash_obj).generate(key)
-        hmac = HMAC(key=prk, hash_obj=self.hash_obj)
-
-        new_key = b''
-        t       = b''
-        for i in range(math.ceil(self.desired_len / (self.hash_obj.digest_size))):
-            t        = hmac.generate(t + info + bytes([i + 1]))
-            new_key += t
-
-        return new_key[:self.desired_len]
+        prk = self.extract(salt, key)
+        return self.expand(prk, info, self.desired_len)
