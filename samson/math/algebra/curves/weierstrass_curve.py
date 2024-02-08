@@ -3,7 +3,7 @@ from samson.math.algebra.rings.ring import Ring, RingElement
 from samson.math.polynomial import Polynomial
 from samson.math.factorization.general import factor, is_perfect_power
 from samson.math.algebra.curves.util import EllipticCurveCardAlg
-from samson.math.general import mod_inv, schoofs_algorithm, gcd, hasse_frobenius_trace_interval, sieve_of_eratosthenes, product, crt, is_prime, kth_root, batch_inv, lcm, frobenius_trace_mod_l, legendre, cornacchias_algorithm, hilbert_class_polynomial, random_int, random_int_between, find_prime, primes, cyclotomic_polynomial, find_representative
+from samson.math.general import mod_inv, schoofs_algorithm, gcd, hasse_frobenius_trace_interval, sieve_of_eratosthenes, product, crt, is_prime, kth_root, batch_inv, lcm, frobenius_trace_mod_l, legendre, cornacchias_algorithm, hilbert_class_polynomial, random_int, random_int_between, find_prime, primes, cyclotomic_polynomial, find_representative, is_power_of_two
 from samson.math.discrete_logarithm import pohlig_hellman
 from samson.math.map import Map
 from samson.utilities.exceptions import NoSolutionException, SearchspaceExhaustedException, CoercionException
@@ -577,6 +577,41 @@ class WeierstrassPoint(RingElement):
 
         Zem = (ZZ/ZZ(Eo)).mul_group()
         return Zem(Fo).order()
+
+
+    def serialize_uncompressed(self) -> bytes:
+        """
+        Internal function used for exporting the key.
+        """
+        from samson.utilities.bytes import Bytes
+        zero_fill = math.ceil(self.curve.order().bit_length() / 8)
+        return b'\x04' + (Bytes(int(self.x)).zfill(zero_fill) + Bytes(int(self.y)).zfill(zero_fill))
+
+
+    def serialize_compressed(self):
+        from samson.utilities.bytes import Bytes
+
+        if not self:
+            return b'\x00'
+        else:
+            zero_fill = math.ceil(self.curve.order().bit_length() / 8)
+            x = Bytes(int(self.x)).zfill(zero_fill)
+
+            # 2.2.1 q == p
+            if self.x.ring.order() == self.x.ring.characteristic():
+                y = int(self.y % 2)
+            elif is_power_of_two(self.x.ring.order()):
+                if not self.x:
+                    y = 0
+                else:
+                    z = self.y/self.x
+                    y = int(z[0])
+            else:
+                raise NotImplementedError("Compressed points for non-binary prime powers not implemented")
+            
+            return bytes([0x02 ^ y]) + x
+
+
 
 
 
@@ -2229,6 +2264,48 @@ class WeierstrassCurve(Ring):
             return formal_log(tP) / p
 
         return Map(E, Qp2, add_trans)
+
+
+
+    def decode_point(self, x_y_bytes: bytes):
+        # https://www.secg.org/sec1-v2.pdf
+        from samson.utilities.bytes import Bytes
+        x_y_bytes = Bytes.wrap(x_y_bytes)
+
+        # Uncompressed Point
+        if x_y_bytes[0] == 4:
+            x_y_bytes = x_y_bytes[1:]
+            x, y = x_y_bytes[:len(x_y_bytes) // 2].int(), x_y_bytes[len(x_y_bytes) // 2:].int()
+        else:
+            y2 = x_y_bytes[0] ^ 2
+            x  = x_y_bytes[1:].int()
+
+            if self.ring.order() == self.ring.characteristic():
+                y = self.defining_polynomial()(x).sqrt()
+                if y % 2 != y2:
+                    y = -y
+
+            elif is_power_of_two(self.ring.order()):
+                if not x:
+                    y = self.b**(2*int(math.log2(self.ring.order()))-1)
+                else:
+                    x    = self.ring(x)
+                    beta = x + self.a + self.b*x**-2
+                    z    = Symbol('z')
+                    _    = self.polynomial_ring(z)
+                    poly = z**2 + z - beta
+
+                    r = poly.roots()[0]
+
+                    if r[0] == y2:
+                        y = x*r
+                    else:
+                        y = x*(r+1)
+
+            else:
+                raise NotImplementedError("Cannot decode points of non-binary prime power fieldss")
+
+        return self(x,y)
 
 
 

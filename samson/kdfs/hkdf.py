@@ -36,11 +36,11 @@ class HKDF(KDF):
 
         new_key = b''
         t       = b''
-        for i in range(math.ceil(self.desired_len / (self.hash_obj.digest_size))):
+        for i in range(math.ceil(L / (self.hash_obj.digest_size))):
             t        = hmac.generate(t + info + bytes([i + 1]))
             new_key += t
 
-        return new_key[:self.desired_len]
+        return new_key[:L]
 
 
     def derive(self, key: bytes, salt: bytes, info: bytes=b'') -> Bytes:

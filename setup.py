@@ -87,6 +87,8 @@ setup(name='samson-crypto',
           "samson/prngs",
           "samson/protocols",
           "samson/protocols/jwt",
+          "samson/protocols/opaque",
+          "samson/protocols/zkstark",
           "samson/public_key",
           "samson/stream_ciphers",
           "samson/utilities"

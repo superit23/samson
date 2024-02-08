@@ -185,7 +185,7 @@ class ECDSA(DSA):
         """
         Internal function used for exporting the key. Formats `Q` into a bitstring.
         """
-        zero_fill = math.ceil(self.G.curve.order().bit_length() / 8)
+        zero_fill    = math.ceil(self.G.curve.order().bit_length() / 8)
         pub_point_bs = bin((b'\x00\x04' + (Bytes(int(self.Q.x)).zfill(zero_fill) + Bytes(int(self.Q.y)).zfill(zero_fill))).int())[2:]
         pub_point_bs = pub_point_bs.zfill(math.ceil(len(pub_point_bs) / 8) * 8)
         return pub_point_bs

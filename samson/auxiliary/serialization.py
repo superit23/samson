@@ -295,6 +295,12 @@ class SizedSerializable(BaseObject):
             
             def __bool__(self):
                 return bool(self.val)
+            
+            def __len__(self):
+                if self:
+                    return len(self.val)
+                else:
+                    raise TypeError("Uninstantiated primitive has no length")
 
 
         cls.Primitive = Primitive
@@ -353,6 +359,10 @@ class SizedSerializable(BaseObject):
 
         cls.Depends = Depends
 
+        class Fixed(object):
+            def __len__(self):
+                return self.SIZE
+
 
 
         class SelectorMeta(type):
@@ -387,7 +397,7 @@ class SizedSerializable(BaseObject):
         cls.Selector = Selector
 
 
-        class FixedInt(Primitive, cls):
+        class FixedInt(Primitive, cls, Fixed):
             SIZE   = None
             SIGNED = False
             val: int
@@ -582,7 +592,7 @@ class SizedSerializable(BaseObject):
         cls.GreedyList = GreedyList
 
 
-        class FixedBytes(Primitive, cls, Subscriptable):
+        class FixedBytes(Primitive, cls, Subscriptable, Fixed):
             SIZE = None
             val: bytes
 
