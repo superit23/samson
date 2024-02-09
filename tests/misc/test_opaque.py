@@ -1,6 +1,7 @@
 from samson.protocols.opaque.rfc9380 import P256_XMD_SHA_256_SSWU_RO, P256
+from samson.protocols.opaque.opaque import OPAQUERegistrationClient, OPAQUERegistrationServer, OPAQUECiphersuite, ThreeDHAKEClient, ThreeDHAKEServer
+from samson.protocols.opaque.ciphersuite import AKE, OPRF, Hash, KDF, KSF, MAC, Bytes
 import unittest
-
 
 class OPAQUETestCase(unittest.TestCase):
 
@@ -100,75 +101,137 @@ class OPAQUETestCase(unittest.TestCase):
 
 
 
-def test():
-    # Input
-    oprf_seed = bytes(Bytes(0x62f60b286d20ce4fd1d64809b0021dad6ed5d52a2c8cf27ae6582543a0a8dce2))
-    credential_identifier = bytes(Bytes(0x31323334))
-    password = bytes(Bytes(0x436f7272656374486f72736542617474657279537461706c65))
-    envelope_nonce = bytes(Bytes(0xa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51f))
-    masking_nonce = bytes(Bytes(0x38fe59af0df2c79f57b8780278f5ae47355fe1f817119041951c80f612fdfc6d))
-    server_private_key = 0xc36139381df63bfc91c850db0b9cfbec7a62e86d80040a41aa7725bf0e79d5e5
-    server_public_key = bytes(Bytes(0x035f40ff9cf88aa1f5cd4fe5fd3da9ea65a4923a5594f84fd9f2092d6067784874))
-    server_nonce = bytes(Bytes(0x71cd9960ecef2fe0d0f7494986fa3d8b2bb01963537e60efb13981e138e3d4a1))
-    client_nonce = bytes(Bytes(0xab3d33bde0e93eda72392346a7a73051110674bbf6b1b7ffab8be4f91fdaeeb1))
-    client_keyshare_seed = bytes(Bytes(0x633b875d74d1556d2a2789309972b06db21dfcc4f5ad51d7e74d783b7cfab8dc))
-    server_keyshare_seed = bytes(Bytes(0x05a4f54206eef1ba2f615bc0aa285cb22f26d1153b5b40a1e85ff80da12f982f))
-    blind_registration = 0x411bf1a62d119afe30df682b91a0a33d777972d4f2daa4b34ca527d597078153
-    blind_login = 0xc497fddf6056d241e6cf9fb7ac37c384f49b357a221eb0a802c989b9942256c1
+    def test_opaque_3dh_hashsha256_p256sha256_ksfident_hkdfsha256_hmacsha256_P256_XMD_SHA_256_SSWU_RO_0(self):
+        # https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-opaque-13#name-opaque-3dh-real-test-vector-5
+        # Input
+        oprf_seed = bytes(Bytes(0x62f60b286d20ce4fd1d64809b0021dad6ed5d52a2c8cf27ae6582543a0a8dce2))
+        credential_identifier = bytes(Bytes(0x31323334))
+        password = bytes(Bytes(0x436f7272656374486f72736542617474657279537461706c65))
+        envelope_nonce = bytes(Bytes(0xa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51f))
+        masking_nonce = bytes(Bytes(0x38fe59af0df2c79f57b8780278f5ae47355fe1f817119041951c80f612fdfc6d))
+        server_private_key = 0xc36139381df63bfc91c850db0b9cfbec7a62e86d80040a41aa7725bf0e79d5e5
+        server_public_key = bytes(Bytes(0x035f40ff9cf88aa1f5cd4fe5fd3da9ea65a4923a5594f84fd9f2092d6067784874))
+        server_nonce = bytes(Bytes(0x71cd9960ecef2fe0d0f7494986fa3d8b2bb01963537e60efb13981e138e3d4a1))
+        client_nonce = bytes(Bytes(0xab3d33bde0e93eda72392346a7a73051110674bbf6b1b7ffab8be4f91fdaeeb1))
+        client_keyshare_seed = bytes(Bytes(0x633b875d74d1556d2a2789309972b06db21dfcc4f5ad51d7e74d783b7cfab8dc))
+        server_keyshare_seed = bytes(Bytes(0x05a4f54206eef1ba2f615bc0aa285cb22f26d1153b5b40a1e85ff80da12f982f))
+        blind_registration = 0x411bf1a62d119afe30df682b91a0a33d777972d4f2daa4b34ca527d597078153
+        blind_login = 0xc497fddf6056d241e6cf9fb7ac37c384f49b357a221eb0a802c989b9942256c1
 
-    # Intermediate
-    client_public_key = bytes(Bytes(0x03b218507d978c3db570ca994aaf36695a731ddb2db272c817f79746fc37ae5214))
-    auth_key = bytes(Bytes(0x5bd4be1602516092dc5078f8d699f5721dc1720a49fb80d8e5c16377abd0987b))
-    randomized_password = bytes(Bytes(0x06be0a1a51d56557a3adad57ba29c5510565dcd8b5078fa319151b9382258fb0))
-    envelope = bytes(Bytes(0xa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51fad30bbcfc1f8eda0211553ab9aaf26345ad59a128e80188f035fe4924fad67b8))
-    handshake_secret = bytes(Bytes(0x83a932431a8f25bad042f008efa2b07c6cd0faa8285f335b6363546a9f9b235f))
-    server_mac_key = bytes(Bytes(0x13e928581febfad28855e3e7f03306d61bd69489686f621535d44a1365b73b0d))
-    client_mac_key = bytes(Bytes(0xafdc53910c25183b08b930e6953c35b3466276736d9de2e9c5efaf150f4082c5))
-    oprf_key = 0x2dfb5cb9aa1476093be74ca0d43e5b02862a05f5d6972614d7433acdc66f7f31
+        # Intermediate
+        client_public_key = bytes(Bytes(0x03b218507d978c3db570ca994aaf36695a731ddb2db272c817f79746fc37ae5214))
+        # auth_key = bytes(Bytes(0x5bd4be1602516092dc5078f8d699f5721dc1720a49fb80d8e5c16377abd0987b))
+        # randomized_password = bytes(Bytes(0x06be0a1a51d56557a3adad57ba29c5510565dcd8b5078fa319151b9382258fb0))
+        # envelope = bytes(Bytes(0xa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51fad30bbcfc1f8eda0211553ab9aaf26345ad59a128e80188f035fe4924fad67b8))
+        # handshake_secret = bytes(Bytes(0x83a932431a8f25bad042f008efa2b07c6cd0faa8285f335b6363546a9f9b235f))
+        # server_mac_key = bytes(Bytes(0x13e928581febfad28855e3e7f03306d61bd69489686f621535d44a1365b73b0d))
+        # client_mac_key = bytes(Bytes(0xafdc53910c25183b08b930e6953c35b3466276736d9de2e9c5efaf150f4082c5))
+        # oprf_key = 0x2dfb5cb9aa1476093be74ca0d43e5b02862a05f5d6972614d7433acdc66f7f31
 
-    # Outeput
-    ref_registration_request = 0x029e949a29cfa0bf7c1287333d2fb3dc586c41aa652f5070d26a5315a1b50229f8
-    ref_registration_response = 0x0350d3694c00978f00a5ce7cd08a00547e4ab5fb5fc2b2f6717cdaa6c89136efef035f40ff9cf88aa1f5cd4fe5fd3da9ea65a4923a5594f84fd9f2092d6067784874
-    ref_registration_upload = 0x03b218507d978c3db570ca994aaf36695a731ddb2db272c817f79746fc37ae52147f0ed53532d3ae8e505ecc70d42d2b814b6b0e48156def71ea029148b2803aafa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51fad30bbcfc1f8eda0211553ab9aaf26345ad59a128e80188f035fe4924fad67b8
-    ref_KE1 = 0x037342f0bcb3ecea754c1e67576c86aa90c1de3875f390ad599a26686cdfee6e07ab3d33bde0e93eda72392346a7a73051110674bbf6b1b7ffab8be4f91fdaeeb1022ed3f32f318f81bab80da321fecab3cd9b6eea11a95666dfa6beeaab321280b6
-    ref_KE2 = 0x0246da9fe4d41d5ba69faa6c509a1d5bafd49a48615a47a8dd4b0823cc1476481138fe59af0df2c79f57b8780278f5ae47355fe1f817119041951c80f612fdfc6d2f0c547f70deaeca54d878c14c1aa5e1ab405dec833777132eea905c2fbb12504a67dcbe0e66740c76b62c13b04a38a77926e19072953319ec65e41f9bfd2ae26837b6ce688bf9af2542f04eec9ab96a1b9328812dc2f5c89182ed47fead61f09f71cd9960ecef2fe0d0f7494986fa3d8b2bb01963537e60efb13981e138e3d4a103c1701353219b53acf337bf6456a83cefed8f563f1040b65afbf3b65d3bc9a19b50a73b145bc87a157e8c58c0342e2047ee22ae37b63db17e0a82a30fcc4ecf7b
-    ref_KE3 = 0xe97cab4433aa39d598e76f13e768bba61c682947bdcf9936035e8a3a3ebfb66e
-    ref_export_key = 0xc3c9a1b0e33ac84dd83d0b7e8af6794e17e7a3caadff289fbd9dc769a853c64b
-    ref_session_key = 0x484ad345715ccce138ca49e4ea362c6183f0949aaaa1125dc3bc3f80876e7cd1
+        # Output
+        ref_registration_request = 0x029e949a29cfa0bf7c1287333d2fb3dc586c41aa652f5070d26a5315a1b50229f8
+        ref_registration_response = 0x0350d3694c00978f00a5ce7cd08a00547e4ab5fb5fc2b2f6717cdaa6c89136efef035f40ff9cf88aa1f5cd4fe5fd3da9ea65a4923a5594f84fd9f2092d6067784874
+        ref_registration_upload = 0x03b218507d978c3db570ca994aaf36695a731ddb2db272c817f79746fc37ae52147f0ed53532d3ae8e505ecc70d42d2b814b6b0e48156def71ea029148b2803aafa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51fad30bbcfc1f8eda0211553ab9aaf26345ad59a128e80188f035fe4924fad67b8
+        ref_KE1 = 0x037342f0bcb3ecea754c1e67576c86aa90c1de3875f390ad599a26686cdfee6e07ab3d33bde0e93eda72392346a7a73051110674bbf6b1b7ffab8be4f91fdaeeb1022ed3f32f318f81bab80da321fecab3cd9b6eea11a95666dfa6beeaab321280b6
+        ref_KE2 = 0x0246da9fe4d41d5ba69faa6c509a1d5bafd49a48615a47a8dd4b0823cc1476481138fe59af0df2c79f57b8780278f5ae47355fe1f817119041951c80f612fdfc6d2f0c547f70deaeca54d878c14c1aa5e1ab405dec833777132eea905c2fbb12504a67dcbe0e66740c76b62c13b04a38a77926e19072953319ec65e41f9bfd2ae26837b6ce688bf9af2542f04eec9ab96a1b9328812dc2f5c89182ed47fead61f09f71cd9960ecef2fe0d0f7494986fa3d8b2bb01963537e60efb13981e138e3d4a103c1701353219b53acf337bf6456a83cefed8f563f1040b65afbf3b65d3bc9a19b50a73b145bc87a157e8c58c0342e2047ee22ae37b63db17e0a82a30fcc4ecf7b
+        ref_KE3 = 0xe97cab4433aa39d598e76f13e768bba61c682947bdcf9936035e8a3a3ebfb66e
+        ref_export_key = 0xc3c9a1b0e33ac84dd83d0b7e8af6794e17e7a3caadff289fbd9dc769a853c64b
+        ref_session_key = 0x484ad345715ccce138ca49e4ea362c6183f0949aaaa1125dc3bc3f80876e7cd1
 
-
-    from samson.protocols.opaque.opaque import *
-    from samson.protocols.opaque.rfc9380 import P256_XMD_SHA_256_SSWU_RO
-
-    context = Bytes(0x4f50415155452d504f43)
-    G       = OPRF(P256_XMD_SHA_256_SSWU_RO)
-    client  = OPAQUEClient(G)
-    server  = OPAQUEServer(G)
-
-    ake_server = ThreeDHAKEServer(server, context)
-    ake_client = ThreeDHAKEClient(client, context)
-
-    # Registration
-    reg_req, blind = ake_client.opaque_client.CreateRegistrationRequest(password, blind_registration)
-    reg_resp       = ake_server.opaque_server.CreateRegistrationResponse(reg_req, server_public_key, credential_identifier, oprf_seed)
-
-    record, export_key = ake_client.opaque_client.FinalizeRegistrationRequest(password, blind, reg_resp, envelope_nonce=envelope_nonce)
-
-    assert Bytes(reg_req).int() == ref_registration_request
-    assert Bytes(reg_resp).int() == ref_registration_response
-    assert Bytes(record).int() == ref_registration_upload
-    assert Bytes(export_key).int() == ref_export_key
+        self._test_opaque_3dh(
+            password, blind_registration, server_public_key, credential_identifier,
+            oprf_seed, envelope_nonce, ref_registration_request, ref_registration_response,
+            ref_registration_upload, ref_export_key, blind_login, client_nonce, client_keyshare_seed,
+            server_nonce, server_keyshare_seed, masking_nonce, server_private_key, client_public_key, ref_KE1, ref_KE2, ref_KE3, ref_session_key,
+            client_identity=None, server_identity=None
+        )
 
 
-    # Online Authenticated Key-Exchange
-    ke1 = ake_client.GenerateKE1(password, blind_login, client_nonce=client_nonce, client_keyshare_seed=client_keyshare_seed)
-    ke2 = ake_server.GenerateKE2(server_public_key, server_private_key, server_public_key, record, credential_identifier, oprf_seed, ke1, client_public_key, server_nonce=server_nonce, server_keyshare_seed=server_keyshare_seed, masking_nonce=masking_nonce)
-    (ke3, session_key_c, export_key_c) = ake_client.GenerateKE3(client_public_key, server_public_key, ke2)
-    session_key_s = ake_server.ServerFinish(ke3)
 
-    assert Bytes(ke1).int() == ref_KE1
-    assert Bytes(ke2).int() == ref_KE2
-    assert Bytes(ke3).int() == ref_KE3
-    assert Bytes(session_key_s).int() == ref_session_key
-    assert Bytes(session_key_c).int() == ref_session_key
-    assert Bytes(export_key_c).int() == ref_export_key
+    def test_opaque_3dh_hashsha256_p256sha256_ksfident_hkdfsha256_hmacsha256_P256_XMD_SHA_256_SSWU_RO_1(self):
+        # https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-opaque-13#name-opaque-3dh-real-test-vector-5
+        # Input
+        client_identity = bytes(Bytes(0x616c696365))
+        server_identity = bytes(Bytes(0x626f62))
+        oprf_seed = bytes(Bytes(0x62f60b286d20ce4fd1d64809b0021dad6ed5d52a2c8cf27ae6582543a0a8dce2))
+        credential_identifier = bytes(Bytes(0x31323334))
+        password = bytes(Bytes(0x436f7272656374486f72736542617474657279537461706c65))
+        envelope_nonce = bytes(Bytes(0xa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51f))
+        masking_nonce = bytes(Bytes(0x38fe59af0df2c79f57b8780278f5ae47355fe1f817119041951c80f612fdfc6d))
+        server_private_key = 0xc36139381df63bfc91c850db0b9cfbec7a62e86d80040a41aa7725bf0e79d5e5
+        server_public_key = bytes(Bytes(0x035f40ff9cf88aa1f5cd4fe5fd3da9ea65a4923a5594f84fd9f2092d6067784874))
+        server_nonce = bytes(Bytes(0x71cd9960ecef2fe0d0f7494986fa3d8b2bb01963537e60efb13981e138e3d4a1))
+        client_nonce = bytes(Bytes(0xab3d33bde0e93eda72392346a7a73051110674bbf6b1b7ffab8be4f91fdaeeb1))
+        client_keyshare_seed = bytes(Bytes(0x633b875d74d1556d2a2789309972b06db21dfcc4f5ad51d7e74d783b7cfab8dc))
+        server_keyshare_seed = bytes(Bytes(0x05a4f54206eef1ba2f615bc0aa285cb22f26d1153b5b40a1e85ff80da12f982f))
+        blind_registration = 0x411bf1a62d119afe30df682b91a0a33d777972d4f2daa4b34ca527d597078153
+        blind_login = 0xc497fddf6056d241e6cf9fb7ac37c384f49b357a221eb0a802c989b9942256c1
+
+        # Intermediate
+        client_public_key = bytes(Bytes(0x03b218507d978c3db570ca994aaf36695a731ddb2db272c817f79746fc37ae5214))
+        # auth_key = bytes(Bytes(0x5bd4be1602516092dc5078f8d699f5721dc1720a49fb80d8e5c16377abd0987b))
+        # randomized_password = bytes(Bytes(0x06be0a1a51d56557a3adad57ba29c5510565dcd8b5078fa319151b9382258fb0))
+        # envelope = bytes(Bytes(0xa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51fad30bbcfc1f8eda0211553ab9aaf26345ad59a128e80188f035fe4924fad67b8))
+        # handshake_secret = bytes(Bytes(0x83a932431a8f25bad042f008efa2b07c6cd0faa8285f335b6363546a9f9b235f))
+        # server_mac_key = bytes(Bytes(0x13e928581febfad28855e3e7f03306d61bd69489686f621535d44a1365b73b0d))
+        # client_mac_key = bytes(Bytes(0xafdc53910c25183b08b930e6953c35b3466276736d9de2e9c5efaf150f4082c5))
+        # oprf_key = 0x2dfb5cb9aa1476093be74ca0d43e5b02862a05f5d6972614d7433acdc66f7f31
+
+        # Output
+        ref_registration_request = 0x029e949a29cfa0bf7c1287333d2fb3dc586c41aa652f5070d26a5315a1b50229f8
+        ref_registration_response = 0x0350d3694c00978f00a5ce7cd08a00547e4ab5fb5fc2b2f6717cdaa6c89136efef035f40ff9cf88aa1f5cd4fe5fd3da9ea65a4923a5594f84fd9f2092d6067784874
+        ref_registration_upload = 0x03b218507d978c3db570ca994aaf36695a731ddb2db272c817f79746fc37ae52147f0ed53532d3ae8e505ecc70d42d2b814b6b0e48156def71ea029148b2803aafa921f2a014513bd8a90e477a629794e89fec12d12206dde662ebdcf65670e51f4d7773a36a208a866301dbb2858e40dc5638017527cf91aef32d3848eebe0971
+        ref_KE1 = 0x037342f0bcb3ecea754c1e67576c86aa90c1de3875f390ad599a26686cdfee6e07ab3d33bde0e93eda72392346a7a73051110674bbf6b1b7ffab8be4f91fdaeeb1022ed3f32f318f81bab80da321fecab3cd9b6eea11a95666dfa6beeaab321280b6
+        ref_KE2 = 0x0246da9fe4d41d5ba69faa6c509a1d5bafd49a48615a47a8dd4b0823cc1476481138fe59af0df2c79f57b8780278f5ae47355fe1f817119041951c80f612fdfc6d2f0c547f70deaeca54d878c14c1aa5e1ab405dec833777132eea905c2fbb12504a67dcbe0e66740c76b62c13b04a38a77926e19072953319ec65e41f9bfd2ae268d7f106042021c80300e4c6f585980cf39fc51a4a6bba41b0729f9b240c729e5671cd9960ecef2fe0d0f7494986fa3d8b2bb01963537e60efb13981e138e3d4a103c1701353219b53acf337bf6456a83cefed8f563f1040b65afbf3b65d3bc9a19b84922c7e5d074838a8f278592c53f61fb59f031e85ad480c0c71086b871e1b24
+        ref_KE3 = 0x46833578cee137775f6be3f01b80748daac5a694101ad0e9e7025480552da56a
+        ref_export_key = 0xc3c9a1b0e33ac84dd83d0b7e8af6794e17e7a3caadff289fbd9dc769a853c64b
+        ref_session_key = 0x27766fabd8dd88ff37fbd0ef1a491e601d10d9f016c2b28c4bd1b0fb7511a3c3
+
+        self._test_opaque_3dh(
+            password, blind_registration, server_public_key, credential_identifier,
+            oprf_seed, envelope_nonce, ref_registration_request, ref_registration_response,
+            ref_registration_upload, ref_export_key, blind_login, client_nonce, client_keyshare_seed,
+            server_nonce, server_keyshare_seed, masking_nonce, server_private_key, client_public_key, ref_KE1, ref_KE2, ref_KE3, ref_session_key,
+            client_identity=client_identity, server_identity=server_identity
+        )
+
+
+
+    def _test_opaque_3dh(self, password, blind_registration, server_public_key, credential_identifier,
+                        oprf_seed, envelope_nonce, ref_registration_request, ref_registration_response,
+                        ref_registration_upload, ref_export_key, blind_login, client_nonce, client_keyshare_seed,
+                        server_nonce, server_keyshare_seed, masking_nonce, server_private_key, client_public_key,
+                        ref_KE1, ref_KE2, ref_KE3, ref_session_key, client_identity=None, server_identity=None):
+
+        # Build client and server
+        ciphersuite = OPAQUECiphersuite.select(AKE.ThreeDH, OPRF.P256_SHA256, Hash.SHA256, KDF.HKDF_SHA256, KSF.Identity, MAC.HMAC_SHA256)
+        reg_client  = OPAQUERegistrationClient(ciphersuite)
+        reg_server  = OPAQUERegistrationServer(ciphersuite)
+
+        # Registration
+        reg_req, blind     = reg_client.CreateRegistrationRequest(password, blind_registration)
+        reg_resp           = reg_server.CreateRegistrationResponse(reg_req, server_public_key, credential_identifier, oprf_seed)
+        record, export_key = reg_client.FinalizeRegistrationRequest(password, blind, reg_resp, envelope_nonce=envelope_nonce, server_identity=server_identity, client_identity=client_identity)
+
+        self.assertEqual(Bytes(reg_req).int(), ref_registration_request)
+        self.assertEqual(Bytes(reg_resp).int(), ref_registration_response)
+        self.assertEqual(Bytes(record).int(), ref_registration_upload)
+        self.assertEqual(Bytes(export_key).int(), ref_export_key)
+
+
+        # Online Authenticated Key-Exchange protocol
+        context    = Bytes(0x4f50415155452d504f43)
+        ake_server = ThreeDHAKEServer(ciphersuite, context)
+        ake_client = ThreeDHAKEClient(ciphersuite, context)
+
+        ke1 = ake_client.GenerateKE1(password, blind_login, client_nonce=client_nonce, client_keyshare_seed=client_keyshare_seed)
+        ke2 = ake_server.GenerateKE2(server_private_key, server_public_key, record, credential_identifier, oprf_seed, ke1, client_identity=client_identity, server_identity=server_identity, server_nonce=server_nonce, server_keyshare_seed=server_keyshare_seed, masking_nonce=masking_nonce)
+        (ke3, session_key_c, export_key_c) = ake_client.GenerateKE3(client_identity, server_identity, ke2)
+        session_key_s = ake_server.ServerFinish(ke3)
+
+        self.assertEqual(Bytes(ke1).int(), ref_KE1)
+        self.assertEqual(Bytes(ke2).int(), ref_KE2)
+        self.assertEqual(Bytes(ke3).int(), ref_KE3)
+        self.assertEqual(Bytes(session_key_s).int(), ref_session_key)
+        self.assertEqual(Bytes(session_key_c).int(), ref_session_key)
+        self.assertEqual(Bytes(export_key_c).int(), ref_export_key)

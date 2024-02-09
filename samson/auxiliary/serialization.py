@@ -130,7 +130,10 @@ class SizedSerializable(BaseObject):
 
 
         def process(k, v, t):
-            if self.FORCE_TYPE and type(v) is not t:
+            # The second type check exists because sometimes a type is not itself (what the fuck)
+            # This seems to happen when a type is defined within a class (e.g. samson.protocols.opaque.messages.Messages.KE1)
+            # and has requires complex subtypes
+            if self.FORCE_TYPE and (type(v) is not t) and not (hasattr(type(v), '__annotations__') and hasattr(t, '__annotations__') and t.__annotations__.keys() == type(v).__annotations__.keys() and type(v).__name__ == t.__name__):
                 v = t(v)
 
             setattr(self, k, v)
@@ -207,6 +210,9 @@ class SizedSerializable(BaseObject):
 
     def __bytes__(self):
         return self.serialize()
+    
+    def __len__(self):
+        return len(bytes(self))
 
 
     def __iter__(self):
