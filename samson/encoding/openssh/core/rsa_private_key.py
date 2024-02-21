@@ -64,7 +64,8 @@ class RSAPrivateKey(object):
         host = PackedBytes('host').pack(value.host)
 
         padder = IncrementalPadding(padding_size)
-        body = padder.pad(check_bytes + header + n + e + d + q_mod_p + p + q + host)
+        body   = check_bytes + header + n + e + d + q_mod_p + p + q + host
+        body   = padder.pad(body)
 
         if encryptor:
             body = encryptor(body)

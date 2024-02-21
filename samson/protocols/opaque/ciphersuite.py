@@ -160,7 +160,7 @@ class P256SHA256(_OPRF):
     def __init__(self) -> None:
         self.contextString        = CreateContextString(OPRFMode.OPRF, b'P256-SHA256')
         self.hash_to_scalar_suite = P256_XMD_SHA_256_SSWU_RO(DST=b'HashToScalar-' + self.contextString)
-        self.hash_to_group_suite   = P256_XMD_SHA_256_SSWU_RO(DST=b'HashToGroup-' + self.contextString)
+        self.hash_to_group_suite  = P256_XMD_SHA_256_SSWU_RO(DST=b'HashToGroup-' + self.contextString)
 
 
     def RandomScalar(self):

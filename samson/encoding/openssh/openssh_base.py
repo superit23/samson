@@ -64,7 +64,7 @@ class OpenSSHPublicBase(OpenSSHPrivateBase, PEMEncodable):
 
     @classmethod
     def check(cls, buffer: bytes, **kwargs) -> bool:
-        return cls.SSH_PUBLIC_HEADER in buffer and not cls.PRIVATE_CLS.check(buffer)
+        return cls.SSH_PUBLIC_HEADER in buffer and not cls.PRIVATE_CLS.check(buffer) and b'cert' not in buffer[:32]
 
 
     def encode(self, **kwargs) -> bytes:

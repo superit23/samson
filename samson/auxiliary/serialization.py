@@ -502,8 +502,34 @@ class SizedSerializable(BaseObject):
 
             def __int__(self):
                 return self.val
-        
+
         cls.UInt = UInt
+
+
+        class MPInt(Primitive, cls):
+            SIGNED = False
+            val: int
+
+            def serialize(self):
+                val = int_to_bytes(self.val)
+                byte_length = (self.val.bit_length() + 7) // 8
+                if self.val >> (byte_length*8-1):
+                    val = b'\x00' + val
+
+                return self.pack_len(val) + val
+
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                data, val_len = cls.unpack_len(data)
+                val = int.from_bytes(data[:val_len], 'big', signed=cls.SIGNED)
+                return data[val_len:], val
+
+
+            def __int__(self):
+                return self.val
+
+        cls.MPInt = MPInt
 
 
         class Int(UInt):
@@ -634,7 +660,7 @@ class SizedSerializable(BaseObject):
         cls.Bytes = Bytes
 
 
-        class HungryBytes(Primitive, cls):
+        class GreedyBytes(Primitive, cls):
             val: bytes
 
             def serialize(self):
@@ -642,10 +668,10 @@ class SizedSerializable(BaseObject):
 
             @staticmethod
             def _deserialize(data, state=None):
-                return b'', HungryBytes(data)
+                return b'', GreedyBytes(data)
         
 
-        cls.HungryBytes = HungryBytes
+        cls.GreedyBytes = GreedyBytes
 
 
 

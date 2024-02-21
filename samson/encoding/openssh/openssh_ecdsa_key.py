@@ -3,6 +3,7 @@ from samson.encoding.openssh.core.ecdsa_public_key import ECDSAPublicKey
 from samson.encoding.openssh.openssh_base import OpenSSHPrivateBase, OpenSSHPublicBase, OpenSSH2PublicBase
 from samson.utilities.bytes import Bytes
 from samson.math.algebra.curves.named import P192, P224, P256, P384, P521, GOD521
+from samson.hashes.sha2 import SHA256, SHA384, SHA512
 import math
 
 
@@ -16,6 +17,13 @@ SSH_CURVE_NAME_LOOKUP = {
 }
 
 SSH_INVERSE_CURVE_LOOKUP = {v.decode():k for k, v in SSH_CURVE_NAME_LOOKUP.items() if k != GOD521}
+
+CURVE_HASH_LOOKUP = {
+    P256: SHA256(),
+    P384: SHA384(),
+    P521: SHA512(),
+    GOD521: SHA512()
+}
 
 def serialize_public_point(ecdsa_key: 'ECDSA'):
     curve = SSH_CURVE_NAME_LOOKUP[ecdsa_key.G.curve]
@@ -38,7 +46,7 @@ class OpenSSHECDSAKey(OpenSSHPrivateBase):
         curve, x_y_bytes, d = pub.curve, pub.x_y_bytes, priv.d if priv else 1
         curve = SSH_INVERSE_CURVE_LOOKUP[curve.decode()]
 
-        ecdsa   = ECDSA(G=curve.G, hash_obj=None, d=d)
+        ecdsa   = ECDSA(G=curve.G, hash_obj=CURVE_HASH_LOOKUP[curve], d=d)
         ecdsa.Q = curve(*ECDSA.decode_point(x_y_bytes))
 
         return ecdsa

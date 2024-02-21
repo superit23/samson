@@ -40,7 +40,7 @@ class X509EdDSAPublicKey(X509PublicKeyBase):
         curve_oid = str(items[0][0])
         curve = EDCURVE_OID_LOOKUP[curve_oid]
 
-        eddsa = EdDSA(curve=curve)
+        eddsa   = EdDSA(curve=curve)
         eddsa.A = eddsa.decode_point(pub_point)
 
         return X509EdDSAPublicKey(eddsa)

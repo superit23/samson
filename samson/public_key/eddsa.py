@@ -4,6 +4,7 @@ from samson.math.algebra.curves.twisted_edwards_curve import TwistedEdwardsPoint
 from samson.math.algebra.curves.named import EdwardsCurve25519
 from samson.hashes.sha2 import SHA512
 
+from samson.encoding.openssh.openssh_cert import OpenSSHEdDSACertificate
 from samson.encoding.openssh.openssh_eddsa_key import OpenSSHEdDSAPrivateKey, OpenSSHEdDSAPublicKey, SSH2EdDSAPublicKey
 from samson.encoding.pkcs8.pkcs8_eddsa_private_key import PKCS8EdDSAPrivateKey
 from samson.encoding.x509.x509_eddsa_public_key import X509EdDSAPublicKey
@@ -33,6 +34,7 @@ class EdDSA(DSA):
 
 
     PUB_ENCODINGS = {
+        PKIEncoding.OpenSSH_CERT: OpenSSHEdDSACertificate,
         PKIEncoding.OpenSSH: OpenSSHEdDSAPublicKey,
         PKIEncoding.SSH2: SSH2EdDSAPublicKey,
         PKIEncoding.X509: X509EdDSAPublicKey,
@@ -68,6 +70,9 @@ class EdDSA(DSA):
         self.a = curve.clamp_to_curve(a, True) if clamp else a
 
         self.A = A or self.B * self.a
+
+        if type(self.A) in (bytes, Bytes):
+            self.A = self.decode_point(A)
 
 
 

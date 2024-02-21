@@ -1,6 +1,7 @@
 from samson.math.general import mod_inv, find_prime, random_int_between, is_prime
 from samson.utilities.bytes import Bytes
 
+from samson.encoding.openssh.openssh_cert import OpenSSHDSACertificate
 from samson.encoding.openssh.openssh_dsa_key import OpenSSHDSAPrivateKey, OpenSSHDSAPublicKey, SSH2DSAPublicKey
 from samson.encoding.x509.x509_dsa_public_key import X509DSAPublicKey
 from samson.encoding.pkcs1.pkcs1_dsa_private_key import PKCS1DSAPrivateKey
@@ -27,6 +28,7 @@ class DSA(EncodablePKI, SignatureAlg):
 
 
     PUB_ENCODINGS = {
+        PKIEncoding.OpenSSH_CERT: OpenSSHDSACertificate,
         PKIEncoding.OpenSSH: OpenSSHDSAPublicKey,
         PKIEncoding.SSH2: SSH2DSAPublicKey,
         PKIEncoding.X509_CERT: X509DSACertificate,
@@ -41,7 +43,7 @@ class DSA(EncodablePKI, SignatureAlg):
     EPHEMERAL       = EphemeralSpec(ephemeral_type=EphemeralType.KEY, size=SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda dsa: dsa.q.bit_length()))
     USAGE_FREQUENCY = FrequencyType.OFTEN
 
-    def __init__(self, hash_obj: object=SHA256(), p: int=None, q: int=None, g: int=None, x: int=None, L: int=2048, N: int=256):
+    def __init__(self, hash_obj: object=None, p: int=None, q: int=None, g: int=None, x: int=None, L: int=2048, N: int=256):
         """
         Parameters:
             hash_obj (object): Instantiated object with compatible hash interface.
@@ -83,7 +85,7 @@ class DSA(EncodablePKI, SignatureAlg):
 
         self.x = x or random_int_between(1, self.q)
         self.y = pow(self.g, self.x, self.p)
-        self.hash_obj = hash_obj
+        self.hash_obj = hash_obj or SHA256()
 
 
 

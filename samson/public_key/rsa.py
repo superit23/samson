@@ -1,5 +1,6 @@
 from samson.math.general import gcd, lcm, mod_inv, find_prime, crt
 
+from samson.encoding.openssh.openssh_cert import OpenSSHRSACertificate
 from samson.encoding.openssh.openssh_rsa_key import OpenSSHRSAPrivateKey, OpenSSHRSAPublicKey, SSH2RSAPublicKey
 from samson.encoding.jwk.jwk_rsa_public_key import JWKRSAPublicKey
 from samson.encoding.jwk.jwk_rsa_private_key import JWKRSAPrivateKey
@@ -39,6 +40,7 @@ class RSA(NumberTheoreticalAlg, EncodablePKI):
 
 
     PUB_ENCODINGS = {
+        PKIEncoding.OpenSSH_CERT: OpenSSHRSACertificate,
         PKIEncoding.JWK: JWKRSAPublicKey,
         PKIEncoding.OpenSSH: OpenSSHRSAPublicKey,
         PKIEncoding.SSH2: SSH2RSAPublicKey,

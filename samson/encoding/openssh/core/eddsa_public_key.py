@@ -6,18 +6,18 @@ class EdDSAPublicKey(object):
     OpenSSH encoding for an EdDSA public key.
     """
 
-    def __init__(self, name: str, a: int=None):
+    def __init__(self, name: str, A: bytes=None):
         """
         Parameters:
             name (str): Name for bookkeeping purposes.
-            a    (int): Public int.
+            A  (bytes): Public key.
         """
         self.name = name
-        self.a = a
+        self.A = A
 
 
     def __repr__(self):
-        return f"<EdDSAPublicKey: name={self.name}, a={self.a}>"
+        return f"<EdDSAPublicKey: name={self.name}, A={self.A}>"
 
     def __str__(self):
         return self.__repr__()
@@ -34,7 +34,7 @@ class EdDSAPublicKey(object):
         Returns:
             Bytes: Packed bytes.
         """
-        encoded = PackedBytes('eddsa-header').pack(b'ssh-ed25519') + PackedBytes('a').pack(value.a)
+        encoded = PackedBytes('eddsa-header').pack(b'ssh-ed25519') + PackedBytes('A').pack(value.A)
         encoded = PackedBytes('public_key').pack(encoded)
 
         return encoded
@@ -60,6 +60,6 @@ class EdDSAPublicKey(object):
             params, encoded_bytes = PackedBytes('public_key').unpack(encoded_bytes)
 
         _header, params = PackedBytes('eddsa-header').unpack(params)
-        a, params = PackedBytes('a').unpack(params)
+        A, params = PackedBytes('A').unpack(params)
 
-        return EdDSAPublicKey('public_key', a=a.int()), encoded_bytes
+        return EdDSAPublicKey('public_key', A=A), encoded_bytes

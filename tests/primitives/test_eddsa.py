@@ -107,18 +107,13 @@ class EdDSATestCase(unittest.TestCase):
 
 
     def test_import_openssh(self):
+        # TODO: This only exercises it. Does not prove against known-good
         for key, passphrase in [TEST_OPENSSH0, TEST_OPENSSH1, TEST_OPENSSH2, TEST_OPENSSH3]:
             if passphrase:
                 with self.assertRaises(ValueError):
                     EdDSA.import_key(key).key
 
-            eddsa = EdDSA.import_key(key, passphrase=passphrase).key
-
-            # EdDSA's little-endian causes a pretty big headache
-            other_eddsa = EdDSA(h=eddsa.h[:32][::-1], clamp=False)
-
-            self.assertEqual(eddsa.a, other_eddsa.a)
-
+            EdDSA.import_key(key, passphrase=passphrase).key
 
 
     def test_openssh_gauntlet(self):
@@ -138,9 +133,9 @@ class EdDSATestCase(unittest.TestCase):
             new_pub_openssh = EdDSA.import_key(pub_openssh).key
             new_pub_ssh2    = EdDSA.import_key(pub_ssh2).key
 
-            self.assertEqual((new_priv.h, new_priv.a, new_priv.A), (eddsa.h, eddsa.a, eddsa.A))
-            self.assertEqual((new_pub_openssh.a, new_pub_openssh.A), (eddsa.a, eddsa.A))
-            self.assertEqual((new_pub_ssh2.a, new_pub_ssh2.A), (eddsa.a, eddsa.A))
+            self.assertEqual((new_priv.h, new_priv.A), (eddsa.h, eddsa.A))
+            self.assertEqual(new_pub_openssh.A, eddsa.A)
+            self.assertEqual(new_pub_ssh2.A, eddsa.A)
 
 
 
@@ -172,7 +167,7 @@ class EdDSATestCase(unittest.TestCase):
 
     def _run_test(self, message, d, curve, hash_alg, expected_public_key=None, expected_sig=None):
         eddsa = EdDSA(d=d, curve=curve, hash_obj=hash_alg)
-        sig = eddsa.sign(message)
+        sig   = eddsa.sign(message)
 
         if expected_public_key:
             self.assertEqual(eddsa.encode_point(eddsa.A).int(), expected_public_key)

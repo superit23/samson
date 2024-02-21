@@ -5,6 +5,7 @@ from samson.utilities.exceptions import NoSolutionException
 from samson.public_key.dsa import DSA
 from samson.hashes.sha2 import SHA256
 
+from samson.encoding.openssh.openssh_cert import OpenSSHECDSACertificate
 from samson.encoding.openssh.openssh_ecdsa_key import OpenSSHECDSAPrivateKey, OpenSSHECDSAPublicKey, SSH2ECDSAPublicKey
 from samson.encoding.jwk.jwk_ec_private_key import JWKECPrivateKey
 from samson.encoding.jwk.jwk_ec_public_key import JWKECPublicKey
@@ -37,6 +38,7 @@ class ECDSA(DSA):
 
     PUB_ENCODINGS = {
         PKIEncoding.JWK: JWKECPublicKey,
+        PKIEncoding.OpenSSH_CERT: OpenSSHECDSACertificate,
         PKIEncoding.OpenSSH: OpenSSHECDSAPublicKey,
         PKIEncoding.SSH2: SSH2ECDSAPublicKey,
         PKIEncoding.X509_CERT: X509ECDSACertificate,

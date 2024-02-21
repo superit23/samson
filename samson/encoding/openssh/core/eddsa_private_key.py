@@ -10,24 +10,24 @@ class EdDSAPrivateKey(object):
     OpenSSH encoding for an EdDSA private key.
     """
 
-    def __init__(self, name: str, check_bytes: bytes=None, a: int=None, h: int=None, host: bytes=None):
+    def __init__(self, name: str, check_bytes: bytes=None, A: bytes=None, h: int=None, host: bytes=None):
         """
         Parameters:
             name          (str): Name for bookkeeping purposes.
             check_bytes (bytes): Four random bytes repeated for OpenSSH to check if the decryption worked.
-            a             (int): Public int.
+            A           (bytes): Public key.
             h             (int): Hashed private int.
             host        (bytes): Host the key was generated on.
         """
         self.name = name
         self.check_bytes = check_bytes or Bytes.random(4) * 2
-        self.a = a
+        self.A = A
         self.h = h
         self.host = host
 
 
     def __repr__(self):
-        return f"<EdDSAPrivateKey: name={self.name}, a={self.a}, h={self.h}, host={self.host}>"
+        return f"<EdDSAPrivateKey: name={self.name}, A={self.A}, h={self.h}, host={self.host}>"
 
     def __str__(self):
         return self.__repr__()
@@ -47,7 +47,7 @@ class EdDSAPrivateKey(object):
             Bytes: Packed bytes.
         """
         check_bytes = Literal('check_bytes', length=8).pack(value.check_bytes)
-        encoded = check_bytes + PackedBytes('eddsa-header').pack(b'ssh-ed25519') + PackedBytes('a').pack(value.a) + PackedBytes('h').pack(value.h[::-1]) + PackedBytes('host').pack(value.host)
+        encoded = check_bytes + PackedBytes('eddsa-header').pack(b'ssh-ed25519') + PackedBytes('A').pack(value.A) + PackedBytes('h').pack(value.h[::-1]) + PackedBytes('host').pack(value.host)
 
         padder = IncrementalPadding(padding_size)
         body = padder.pad(encoded)
@@ -82,8 +82,8 @@ class EdDSAPrivateKey(object):
         check_bytes, params = check_decrypt(params, decryptor)
 
         _header, params = PackedBytes('eddsa-header').unpack(params)
-        a, params = PackedBytes('a').unpack(params)
+        A, params = PackedBytes('A').unpack(params)
         h, params = PackedBytes('h').unpack(params)
         host, params = PackedBytes('host').unpack(params)
 
-        return EdDSAPrivateKey('private_key', check_bytes=check_bytes, a=a.int(), h=h[::-1], host=host), encoded_bytes
+        return EdDSAPrivateKey('private_key', check_bytes=check_bytes, A=A, h=h[::-1], host=host), encoded_bytes

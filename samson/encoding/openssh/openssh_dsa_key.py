@@ -12,9 +12,10 @@ class OpenSSHDSAKey(OpenSSHPrivateBase):
     @classmethod
     def extract_key(cls, priv, pub):
         from samson.public_key.dsa import DSA
+        from samson.hashes.sha1 import SHA1
         p, q, g, y, x = pub.p, pub.q, pub.g, pub.y, priv.x if priv else 0
 
-        dsa = DSA(None, p=p, q=q, g=g, x=x)
+        dsa = DSA(SHA1(), p=p, q=q, g=g, x=x)
         dsa.y = y
 
         return dsa

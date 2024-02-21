@@ -13,8 +13,8 @@ class OpenSSHEdDSAKey(OpenSSHPrivateBase):
         from samson.public_key.eddsa import EdDSA
         from samson.math.algebra.curves.named import EdwardsCurve25519
 
-        a, h  = pub.a, priv.h if priv else 0
-        eddsa = EdDSA(curve=EdwardsCurve25519, h=h, a=a, d=0, clamp=False)
+        A, h  = pub.A, priv.h if priv else 0
+        eddsa = EdDSA(curve=EdwardsCurve25519, h=h, A=A, d=b'\x00', a=1, clamp=False)
 
         return eddsa
 
@@ -23,11 +23,11 @@ class OpenSSHEdDSAKey(OpenSSHPrivateBase):
 class OpenSSHEdDSAPrivateKey(OpenSSHEdDSAKey):
 
     def build_keys(self, user):
-        public_key  = EdDSAPublicKey('public_key', self.key.a)
+        public_key  = EdDSAPublicKey('public_key', self.key.encode_point(self.key.A))
         private_key = EdDSAPrivateKey(
             'private_key',
             check_bytes=None,
-            a=self.key.a,
+            A=self.key.encode_point(self.key.A),
             h=self.key.h,
             host=user
         )
@@ -40,7 +40,7 @@ class OpenSSHEdDSAPublicKey(OpenSSHEdDSAKey, OpenSSHPublicBase):
     PRIVATE_CLS = OpenSSHEdDSAPrivateKey
 
     def build_pub(self):
-        return EdDSAPublicKey('public_key', self.key.a)
+        return EdDSAPublicKey('public_key', self.key.encode_point(self.key.A))
 
 
 class SSH2EdDSAPublicKey(OpenSSHEdDSAPublicKey, OpenSSH2PublicBase):
