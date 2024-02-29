@@ -1,127 +1,18 @@
-from samson.encoding.openssh.core.openssh_private_header import OpenSSHPrivateHeader
-from samson.encoding.openssh.core.rsa_private_key import RSAPrivateKey
-from samson.encoding.openssh.core.rsa_public_key import RSAPublicKey
-from samson.encoding.openssh.core.dsa_public_key import DSAPublicKey
-from samson.encoding.openssh.core.dsa_private_key import DSAPrivateKey
-from samson.encoding.openssh.core.ecdsa_private_key import ECDSAPrivateKey
-from samson.encoding.openssh.core.ecdsa_public_key import ECDSAPublicKey
-from samson.encoding.openssh.core.eddsa_private_key import EdDSAPrivateKey
-from samson.encoding.openssh.core.eddsa_public_key import EdDSAPublicKey
 from samson.encoding.pem import pem_decode
-from base64 import b64decode
+from samson.encoding.general import PKIAutoParser
+from samson.public_key.all import *
 import unittest
 
 
 class OpenSSHCodecTestCase(unittest.TestCase):
-    def _run_rsa_priv_test(self, openssh_key, passphrase=None):
-        header, left_over = OpenSSHPrivateHeader.unpack(openssh_key)
-        pub, left_over = RSAPublicKey.unpack(left_over)
 
-        decryptor = None
-        if passphrase:
-            decryptor = header.generate_decryptor(passphrase)
+    def _run_openssh_priv_test(self, openssh_key, passphrase=None):
+        decrypted = PKIAutoParser.import_key(openssh_key, passphrase=passphrase)
+        self.assertEqual(pem_decode(decrypted.encode(passphrase=passphrase)), pem_decode(openssh_key))
 
-        priv, left_over = RSAPrivateKey.unpack(left_over, decryptor)
-
-        encryptor, padding_size = None, 8
-        if passphrase:
-            encryptor, padding_size = header.generate_encryptor(passphrase)
-
-        packed_key = header.pack() + RSAPublicKey.pack(pub) + RSAPrivateKey.pack(priv, encryptor, padding_size)
-
-        self.assertEqual(packed_key, openssh_key)
-
-
-
-    def _run_rsa_pub_test(self, openssh_key):
-        parsed_key, _ = RSAPublicKey.unpack(openssh_key, already_unpacked=True)
-        self.assertEqual(RSAPublicKey.pack(parsed_key)[4:], openssh_key)
-
-
-
-    def _run_dsa_priv_test(self, openssh_key, passphrase=None):
-        header, left_over = OpenSSHPrivateHeader.unpack(openssh_key)
-        pub, left_over = DSAPublicKey.unpack(left_over)
-
-        decryptor = None
-        if passphrase:
-            decryptor = header.generate_decryptor(passphrase)
-
-        priv, left_over = DSAPrivateKey.unpack(left_over, decryptor)
-
-        encryptor, padding_size = None, 8
-        if passphrase:
-            encryptor, padding_size = header.generate_encryptor(passphrase)
-
-        packed_key = header.pack() + DSAPublicKey.pack(pub) + DSAPrivateKey.pack(priv, encryptor, padding_size)
-
-        self.assertEqual(packed_key, openssh_key)
-
-
-
-    def _run_dsa_pub_test(self, openssh_key):
-        pub, _left_over = DSAPublicKey.unpack(openssh_key, already_unpacked=True)
-        packed_key = DSAPublicKey.pack(pub)
-
-        self.assertEqual(packed_key[4:], openssh_key)
-
-
-
-    def _run_ecdsa_priv_test(self, openssh_key, passphrase=None):
-        header, left_over = OpenSSHPrivateHeader.unpack(openssh_key)
-        pub, left_over = ECDSAPublicKey.unpack(left_over)
-
-        decryptor = None
-        if passphrase:
-            decryptor = header.generate_decryptor(passphrase)
-
-        priv, left_over = ECDSAPrivateKey.unpack(left_over, decryptor)
-
-        encryptor, padding_size = None, 8
-        if passphrase:
-            encryptor, padding_size = header.generate_encryptor(passphrase)
-
-
-        packed_key = header.pack() + ECDSAPublicKey.pack(pub) + ECDSAPrivateKey.pack(priv, encryptor, padding_size)
-
-        self.assertEqual(packed_key, openssh_key)
-
-
-
-    def _run_ecdsa_pub_test(self, openssh_key):
-        pub, _left_over = ECDSAPublicKey.unpack(openssh_key, already_unpacked=True)
-        packed_key = ECDSAPublicKey.pack(pub)
-
-        self.assertEqual(packed_key[4:], openssh_key)
-
-
-
-    def _run_eddsa_priv_test(self, openssh_key, passphrase=None):
-        header, left_over = OpenSSHPrivateHeader.unpack(openssh_key)
-        pub, left_over = EdDSAPublicKey.unpack(left_over)
-
-        decryptor = None
-        if passphrase:
-            decryptor = header.generate_decryptor(passphrase)
-
-        priv, left_over = EdDSAPrivateKey.unpack(left_over, decryptor)
-
-        encryptor, padding_size = None, 8
-        if passphrase:
-            encryptor, padding_size = header.generate_encryptor(passphrase)
-
-        packed_key = header.pack() + EdDSAPublicKey.pack(pub) + EdDSAPrivateKey.pack(priv, encryptor, padding_size)
-
-        self.assertEqual(packed_key, openssh_key)
-
-
-
-    def _run_eddsa_pub_test(self, openssh_key):
-        pub, _left_over = EdDSAPublicKey.unpack(openssh_key, already_unpacked=True)
-        packed_key = EdDSAPublicKey.pack(pub)
-
-        self.assertEqual(packed_key[4:], openssh_key)
-
+    def _run_openssh_pub_test(self, openssh_key):
+        decoded = PKIAutoParser.import_key(openssh_key)
+        self.assertEqual(decoded.encode(), openssh_key)
 
 
     def test_vec0(self):
@@ -155,7 +46,7 @@ rr4Te/DCawEIb/TQQrOZ9krFKKew+Y8z2Cjv02tPvQx+G+WJBDQ56RRMCAfmbfdLX+Ks5u
 -----END OPENSSH PRIVATE KEY-----"""
 
         # Watch out for the spelling mistake in the key
-        self._run_rsa_priv_test(pem_decode(enc_rsa), b'super secret passhphrase')
+        self._run_openssh_priv_test(enc_rsa, b'super secret passhphrase')
 
 
     def test_vec1(self):
@@ -188,12 +79,12 @@ E0ahS5viCRC2MF/lzGYp2MV9NtARE1piRUh3M34qzmbQUXjV6Z0YRU4b6zWx6Q+3RcBGY/
 5zYQA2HyylyosDPH2KZovi6k3pe60=
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_rsa_priv_test(pem_decode(enc_rsa), b'qwertyuiop')
+        self._run_openssh_priv_test(enc_rsa, b'qwertyuiop')
 
 
     def test_vec2(self):
-        enc_rsa = b"AAAAB3NzaC1yc2EAAAADAQABAAABAQCcvbb8PXGgOhb/T8qHun2JcBjWVJnHepDyQnlfjjqrwpsjqJQ8a0qQ8+dxXuO+B3fYc22Gt1Nr4t3fNSU21sRmxrR/em1WRh6Wc+7Nj/tFv9nsFh0tvYP5pDPsI+sFRt1mnxGaHy5EXwuxkPgDr/AkdvCaicwzuxXpsdwQQ+6om0NXiCjfp9qhd80TnQdmlrATJTXdYyFaysIf8HWQRxGUSQzwheJ6nU+eOmTqpMVlfQ03LM676OZAztDiqbONg3xQb07n/BK2UY3OZtmebqZgsUw4Ajg+LMxIO1fCTSVFI+GEvhW0ZmaXtFw2N8NveRKJ3gfM9ugVY7YvXdVdNYfJ"
-        self._run_rsa_pub_test(b64decode(enc_rsa))
+        enc_rsa = b"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCcvbb8PXGgOhb/T8qHun2JcBjWVJnHepDyQnlfjjqrwpsjqJQ8a0qQ8+dxXuO+B3fYc22Gt1Nr4t3fNSU21sRmxrR/em1WRh6Wc+7Nj/tFv9nsFh0tvYP5pDPsI+sFRt1mnxGaHy5EXwuxkPgDr/AkdvCaicwzuxXpsdwQQ+6om0NXiCjfp9qhd80TnQdmlrATJTXdYyFaysIf8HWQRxGUSQzwheJ6nU+eOmTqpMVlfQ03LM676OZAztDiqbONg3xQb07n/BK2UY3OZtmebqZgsUw4Ajg+LMxIO1fCTSVFI+GEvhW0ZmaXtFw2N8NveRKJ3gfM9ugVY7YvXdVdNYfJ test@test.local"
+        self._run_openssh_pub_test(enc_rsa)
 
 
 
@@ -220,13 +111,13 @@ E0ahS5viCRC2MF/lzGYp2MV9NtARE1piRUh3M34qzmbQUXjV6Z0YRU4b6zWx6Q+3RcBGY/
     V60AAAARZG9uYWxkQERvbmFsZC1NQlAB
     -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_dsa_priv_test(pem_decode(dsa_key))
+        self._run_openssh_priv_test(dsa_key)
 
 
 
     def test_vec3_pub(self):
-        dsa_key = b"AAAAB3NzaC1kc3MAAACBAPWcZVNT6SD5JFLdMycQgA6RksmLc7FTu+9rCoQU9XhEo+dT1rAM2G8fz4InsmALxQ5x981Isbzu5vo2TliMZsJDVb6mMutzgCru2yTSaqZIbJYaKM84/tj6tIMSaMPFkhqlfaGpX4u13jnoSSDWGC6f0tAk/7D+W4pVxXs9EDdVAAAAFQCbDtiJWHGYOPaXWIovy12Cw9icawAAAIEAkhOJbHxiCA9MCa3pBsVGKV6bzVvxf1lN5etcGbp0Zz2pHKa7GtMaTumB8ckwML7EY5GWiRvxqttqXBLv6afa8GzaO7+evm468I/pV3MvH9u1lbAgZsFi/WF+hJdXK38jhd/L/xoJgV60r6D/fKhG5eG3yhnjMjDKhoVsWaHkRD8AAACAMoTYXybQMSQnsM/21z89KqJ3uOQT/0KK6ckqDT+VuiEir+iHBFWzd8WP9uwyQb7t+FlzR2xFnZuMoC8sXaNLZaQdzPR80aRk6Uqf2srkEQG0oamOh6cjjpI/lXSP/HIAqAlyq1051yrZeYzd3VzApYn/sEeQ1pfoUsQlEyX7i7M="
-        self._run_dsa_pub_test(b64decode(dsa_key))
+        dsa_key = b"ssh-dss AAAAB3NzaC1kc3MAAACBAPWcZVNT6SD5JFLdMycQgA6RksmLc7FTu+9rCoQU9XhEo+dT1rAM2G8fz4InsmALxQ5x981Isbzu5vo2TliMZsJDVb6mMutzgCru2yTSaqZIbJYaKM84/tj6tIMSaMPFkhqlfaGpX4u13jnoSSDWGC6f0tAk/7D+W4pVxXs9EDdVAAAAFQCbDtiJWHGYOPaXWIovy12Cw9icawAAAIEAkhOJbHxiCA9MCa3pBsVGKV6bzVvxf1lN5etcGbp0Zz2pHKa7GtMaTumB8ckwML7EY5GWiRvxqttqXBLv6afa8GzaO7+evm468I/pV3MvH9u1lbAgZsFi/WF+hJdXK38jhd/L/xoJgV60r6D/fKhG5eG3yhnjMjDKhoVsWaHkRD8AAACAMoTYXybQMSQnsM/21z89KqJ3uOQT/0KK6ckqDT+VuiEir+iHBFWzd8WP9uwyQb7t+FlzR2xFnZuMoC8sXaNLZaQdzPR80aRk6Uqf2srkEQG0oamOh6cjjpI/lXSP/HIAqAlyq1051yrZeYzd3VzApYn/sEeQ1pfoUsQlEyX7i7M= test@test.local"
+        self._run_openssh_pub_test(dsa_key)
 
 
 
@@ -253,12 +144,12 @@ PrKpeSPI8HV69jg3ZM0nctJiOzFr9k3wO0ub7UAAAAFEEnPct/4v9ju0UrGrltlvYMHcfv
 AAAAEWRvbmFsZEBEb25hbGQtTUJQAQI=
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_dsa_priv_test(pem_decode(dsa_key))
+        self._run_openssh_priv_test(dsa_key)
 
 
     def test_vec4_pub(self):
-        dsa_key = b"AAAAB3NzaC1kc3MAAACBAIR5kXDIngzVAQvbnWX6aj92ZSj0ZeY+l+vwQDji5S4ziboaLYqcu6A0IhoVqdPfnpW9Yh62sV/fysqzwamgFt0DVL2iKWGzumYvhNB/7Mu/9r+lWjvE+ZI2PTL3AQRpo8L/3G762rFoIC36VXdC1GtuOi0SxxPVZbIAEm3KJm09AAAAFQCn8IrE+WHUIn7B+VAw0xfWdn1HBwAAAIBSzlsqrj8EqPA8E2yMqlF4FiiGN1Rvo+KZaY+OygAyspPLWsxcer6VfzCbHAQhRcHUKifRCtI3dO6pSKHS4Z8L2ZXVPZsEKslGZb+qXKqqDlHQmclvfCdlBH1AGwBpzzDy9xlNgPyTukq69rP9S8PJ+N6vKyGbCqRwNdR21xODOAAAAIAyyn18+V/548nVmf4OBQoeUZmomuEpXtycY03r1um0XAqe09N3EFnE+Jhy4kL02p0hh/Ur+/nei+kiIerAsHQmrQekCHBferT6COGw1asJe8ZdSsvf9iD//92UuneV6Af/iqZT6yqXkjyPB1evY4N2TNJ3LSYjsxa/ZN8DtLm+1A=="
-        self._run_dsa_pub_test(b64decode(dsa_key))
+        dsa_key = b"ssh-dss AAAAB3NzaC1kc3MAAACBAIR5kXDIngzVAQvbnWX6aj92ZSj0ZeY+l+vwQDji5S4ziboaLYqcu6A0IhoVqdPfnpW9Yh62sV/fysqzwamgFt0DVL2iKWGzumYvhNB/7Mu/9r+lWjvE+ZI2PTL3AQRpo8L/3G762rFoIC36VXdC1GtuOi0SxxPVZbIAEm3KJm09AAAAFQCn8IrE+WHUIn7B+VAw0xfWdn1HBwAAAIBSzlsqrj8EqPA8E2yMqlF4FiiGN1Rvo+KZaY+OygAyspPLWsxcer6VfzCbHAQhRcHUKifRCtI3dO6pSKHS4Z8L2ZXVPZsEKslGZb+qXKqqDlHQmclvfCdlBH1AGwBpzzDy9xlNgPyTukq69rP9S8PJ+N6vKyGbCqRwNdR21xODOAAAAIAyyn18+V/548nVmf4OBQoeUZmomuEpXtycY03r1um0XAqe09N3EFnE+Jhy4kL02p0hh/Ur+/nei+kiIerAsHQmrQekCHBferT6COGw1asJe8ZdSsvf9iD//92UuneV6Af/iqZT6yqXkjyPB1evY4N2TNJ3LSYjsxa/ZN8DtLm+1A== test@test.local"
+        self._run_openssh_pub_test(dsa_key)
 
 
     def test_vec5(self):
@@ -272,12 +163,12 @@ gAAAAhAIlhbJgLqbWvSMoc8DLRfjFxwMD+IsVUJVJh9d/dyIlaAAAAEWRvbmFsZEBEb25h
 bGQtTUJQAQIDBAUG
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_ecdsa_priv_test(pem_decode(ecdsa_key))
+        self._run_openssh_priv_test(ecdsa_key)
 
 
     def test_vec5_pub(self):
-        ecdsa_key = b"AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBKDva1kzz8r0x2iMtoNNu+ShhVeko7LW4CmauzEJm+UJRJjmhNs7p0tfgJ8cFEEjJijPEF+Bx+YW3+3hcj+Ustg="
-        self._run_ecdsa_pub_test(b64decode(ecdsa_key))
+        ecdsa_key = b"ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBKDva1kzz8r0x2iMtoNNu+ShhVeko7LW4CmauzEJm+UJRJjmhNs7p0tfgJ8cFEEjJijPEF+Bx+YW3+3hcj+Ustg= test@test.local"
+        self._run_openssh_pub_test(ecdsa_key)
 
 
     def test_vec6(self):
@@ -291,12 +182,12 @@ wAAAAgGGwMBSyO8je/vgMA03iw0Ss+H6bbWJ5yArOBP/cauq8AAAARZG9uYWxkQERvbmFs
 ZC1NQlABAgMEBQYH
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_ecdsa_priv_test(pem_decode(ecdsa_key))
+        self._run_openssh_priv_test(ecdsa_key)
 
 
     def test_vec6_pub(self):
-        ecdsa_key = b"AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMS9UcMel13kU72QMrc0a9isQu//HPxOTKKWzFK6fr3o/okZ8AvAZ6RhHe9kJVvHyOlp1h6mbjeoKjcD8r5/jVw="
-        self._run_ecdsa_pub_test(b64decode(ecdsa_key))
+        ecdsa_key = b"ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBMS9UcMel13kU72QMrc0a9isQu//HPxOTKKWzFK6fr3o/okZ8AvAZ6RhHe9kJVvHyOlp1h6mbjeoKjcD8r5/jVw= test@test.local"
+        self._run_openssh_pub_test(ecdsa_key)
 
 
     def test_vec7(self):
@@ -308,12 +199,12 @@ AAAEA9dyAbkQ9SYMduePMZX2oDsNxrAp8eqL4b2LZ5k33q7xlBh7LbSfm9/MOkF+ClES0F
 uCbedq6woxQ9bEYk68vKAAAAEWRvbmFsZEBEb25hbGQtTUJQAQIDBA==
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_eddsa_priv_test(pem_decode(eddsa_key))
+        self._run_openssh_priv_test(eddsa_key)
 
 
     def test_vec7_pub(self):
-        eddsa_key = b"AAAAC3NzaC1lZDI1NTE5AAAAIBlBh7LbSfm9/MOkF+ClES0FuCbedq6woxQ9bEYk68vK"
-        self._run_eddsa_pub_test(b64decode(eddsa_key))
+        eddsa_key = b"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBlBh7LbSfm9/MOkF+ClES0FuCbedq6woxQ9bEYk68vK test@test.local"
+        self._run_openssh_pub_test(eddsa_key)
 
 
     def test_vec8(self):
@@ -325,13 +216,12 @@ AAAEAsbUCaK45d4/w/FEkq70q8cCH1Azd9cM/5ndnuAQ4Sx3LxSvA+OkN+y+hcRpb1tc+q
 iRuwx5GD5pWkKtClhgOeAAAAEWRvbmFsZEBEb25hbGQtTUJQAQIDBA==
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_eddsa_priv_test(pem_decode(eddsa_key))
+        self._run_openssh_priv_test(eddsa_key)
 
 
     def test_vec8_pub(self):
-        eddsa_key = b"AAAAC3NzaC1lZDI1NTE5AAAAIHLxSvA+OkN+y+hcRpb1tc+qiRuwx5GD5pWkKtClhgOe"
-        self._run_eddsa_pub_test(b64decode(eddsa_key))
-
+        eddsa_key = b"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHLxSvA+OkN+y+hcRpb1tc+qiRuwx5GD5pWkKtClhgOe test@test.local"
+        self._run_openssh_pub_test(eddsa_key)
 
 
 
@@ -359,8 +249,7 @@ vuA2jstQZQOQfgqFdWlqFNWIG13kDahuNyun1RZiU3Io3i6rNkcgUfiG2UBd7TWZYmuE43
 TAYnB9YyPCGphG
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_dsa_priv_test(pem_decode(dsa_key), b'bad password')
-
+        self._run_openssh_priv_test(dsa_key, b'bad password')
 
 
 
@@ -375,7 +264,7 @@ dKe54rrd6Vthc8FWa+QJGMM7iW40wH3X8I0Bma3/QeepSjk7d4i6yqyGUdOJUw/6LY81c8
 POk1CjRmYABH3Nx4ZOyM0DQUr60xJ3p+DK0r2JuJag6NlfHah6RlmwsJKLQ=
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_ecdsa_priv_test(pem_decode(ecdsa_key), b'ab62b682b7e52bd2')
+        self._run_openssh_priv_test(ecdsa_key, b'ab62b682b7e52bd2')
 
 
 
@@ -390,7 +279,7 @@ AxTLP7peowIUVuhYTxEm+UjbHKffmZqpcl7NjmXZne3mBQ0ER2leJYbCMSOIFCjfvHcUYS
 QkIhI9KAdhuATMcnJAGE+AZWb7kc5e5DCjzcmXwiwgyziX87684XLJkabl4=
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_ecdsa_priv_test(pem_decode(ecdsa_key), b'1234567890')
+        self._run_openssh_priv_test(ecdsa_key, b'1234567890')
 
 
 
@@ -404,4 +293,28 @@ no7OAzxRjL6EEP1tjS+BODjLzSl65RA/xs+in7isGuKdoIRNsjuTFkv5dpSPNxnt7XTCoD
 MjVf9IZeisieJJYf/NF2ttJ+JRkUlWZhx7xHM=
 -----END OPENSSH PRIVATE KEY-----"""
 
-        self._run_eddsa_priv_test(pem_decode(eddsa_key), b'49a4b3b86a7a51758ec37e3a0a503add1dc867a6ebace796134a8078687c607b982cca76e488a7010067e52c2c2adcf3f18a129f6e47b80b1b0aea6a73810e76')
+        self._run_openssh_priv_test(eddsa_key, b'49a4b3b86a7a51758ec37e3a0a503add1dc867a6ebace796134a8078687c607b982cca76e488a7010067e52c2c2adcf3f18a129f6e47b80b1b0aea6a73810e76')
+
+
+    def test_vec13(self):
+        cert = b'ecdsa-sha2-nistp256-cert-v01@openssh.com AAAAKGVjZHNhLXNoYTItbmlzdHAyNTYtY2VydC12MDFAb3BlbnNzaC5jb20AAAAgYqJn21KRTR9C/I6IP+AxOflBqEK+ixD0baJMLY9ztbsAAAAIbmlzdHAyNTYAAABBBLmpGfjtVOSZZzXO0hVmB/K7BmWFTX8p5HmrdhcObIgC1kPIi+3vICDw0ecKIY966u+xFADhEFxyL5oA+5bl2HMAAAAAAAAAAAAAAAEAAAALYm9iYW5pYm9rYXkAAAAPAAAAC2JvYmFuaWJva2F5AAAAAAAAAAD//////////wAAAAAAAACCAAAAFXBlcm1pdC1YMTEtZm9yd2FyZGluZwAAAAAAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAADnBlcm1pdC11c2VyLXJjAAAAAAAAAAAAAAGXAAAAB3NzaC1yc2EAAAADAQABAAABgQDAIxzdxyEFWIhRW23uRDT9TqP6pmgiede4Nfk89/fYC5S3Lj2zcM0r0Gin+zM041/MabZtftwoyeYLAncLr3jodLVHWRf4TKdD1bUwcSfPQRiuTDFKpzfggP14xddFJf3JjIR7itCNNjg//6ogBlIdsn8k5SvAXOY5TB5HfwcXrEbvhuHbAQYaKe3BxSdXVc+b5XdLNDzttqIvLRUBLPqUthRwK9+3dd2ZWVFtXZQDgsI3sDvyTpgzw9N0sdnLF57X4XNCR3mGNkXHjgr9F6ArkLhvtlmz9Lav1PZMNtRt3JhyDmyej+Ltn0a8FF08qKMymGV6C0xVIMPnDpU2jh4Co4tBMbUNfv2vhlPJS5+aKYdzB807QUnNlpcdph0JTLgmyX8fplkH5RPOJ7yxgXFUR2tXne26SJUiIN6528XUTJgYlHluv+DAW7NjPO9pMh6oj6yr4Hl09apLcjwGSvgNiVqm9uGGIoXcRZS7ix7M4e8TNux3MKJQZcAw947qXx8AAAGUAAAADHJzYS1zaGEyLTUxMgAAAYAJro5Akp/CSAGBnzeskR0Gt7/t2BqsegcZXQ6oY3fQYpxvrkvcDqamg7V81sAKD3qbXwFw/R8jwPCC1dtanz2WGRiqKUU/9CpDiInW7UK0eqy/If1YAz0D5/3RSx99OW4/iHJis3+JnEyvJygo+rDHXP7KZ3kEUlLhSBR5MDvKqktgaPdJoNqDhekBgokV+qwZFb/gIiPKhEhQ/YjOUDSEwKCvo4I9wnL+yYwLmrq9vbYPd+75wGJsmj/ZbmOkwXql9wGXrn1is6MR69hsxH/S4BW3G5qZJgQncu9Xb6FYuzKEHXJTw/DNtkzlbRCX8LFWDPTdkdxIZFkSDWrYdEVOKCa4U7mRZANdQ/zCXD74+5JEF7xNyHGWaSvMwO+a+Z9rleEg17IcVWlPjaziHLfWZWN/vbD2v/p5Is1oZx6cppKRFsF95b2JsHPTKVSZ4JLyEZaeu7sL8LXpkHucnVC6M4lcH6GPjDxmNsEkQUl5cbYN+pGNUie7/zmj+VqPeLw= kali@LSG-AZ0038709'
+        self._run_openssh_pub_test(cert)
+
+
+    def test_vec14(self):
+        cert = b'ecdsa-sha2-nistp256-cert-v01@openssh.com AAAAKGVjZHNhLXNoYTItbmlzdHAyNTYtY2VydC12MDFAb3BlbnNzaC5jb20AAAAghMmhdf9lEGM/po666FoHhOgEKuG8Tu8jsdWKCg+2XQwAAAAIbmlzdHAyNTYAAABBBLmpGfjtVOSZZzXO0hVmB/K7BmWFTX8p5HmrdhcObIgC1kPIi+3vICDw0ecKIY966u+xFADhEFxyL5oA+5bl2HMAAAAAAAAAAAAAAAEAAAALYm9iYW5pYm9rYXkAAAAPAAAAC2JvYmFuaWJva2F5AAAAAAAAAAD//////////wAAAAAAAACCAAAAFXBlcm1pdC1YMTEtZm9yd2FyZGluZwAAAAAAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAADnBlcm1pdC11c2VyLXJjAAAAAAAAAAAAAABoAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBAcKJf384hf6wjGNMzfu5Kn8hpz9XRvg5J4iItXMbS+XIGCBUwjfcMRbbxkEp92oy1I2x3/jX1+S7Dly1proSdUAAABjAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAABIAAAAICu1WkyInGzMZh8DJHfrwXzNRlEG8ArsoaK2P2pzFtr2AAAAIARthsnv5jUk+glncXG0Z5Pd+2Yzzj0DdjMC0Ouzn2Ny kali@LSG-AZ0038709'
+        self._run_openssh_pub_test(cert)
+
+    def test_vec15(self):
+        cert = b'ecdsa-sha2-nistp256-cert-v01@openssh.com AAAAKGVjZHNhLXNoYTItbmlzdHAyNTYtY2VydC12MDFAb3BlbnNzaC5jb20AAAAgBIwxIVNy+FYcia8y+eentDzmIL8FhKNL2uDuzQT4BrkAAAAIbmlzdHAyNTYAAABBBLmpGfjtVOSZZzXO0hVmB/K7BmWFTX8p5HmrdhcObIgC1kPIi+3vICDw0ecKIY966u+xFADhEFxyL5oA+5bl2HMAAAAAAAAAAAAAAAEAAAALYm9iYW5pYm9rYXkAAAAPAAAAC2JvYmFuaWJva2F5AAAAAAAAAAD//////////wAAAAAAAACCAAAAFXBlcm1pdC1YMTEtZm9yd2FyZGluZwAAAAAAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAADnBlcm1pdC11c2VyLXJjAAAAAAAAAAAAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIJofjrP/2lrZALvX9ZlWBLlhSylKTSBrklur+vNECkOeAAAAUwAAAAtzc2gtZWQyNTUxOQAAAECvJ/kRqSkyq/ZDuf/HlwzRZQLshakJ6eNiS3P0ibVDhKqkUn6RaZezmFCD9kVfntddXevva8muL9JB8K42dQAN kali@LSG-AZ0038709'
+        self._run_openssh_pub_test(cert)
+
+
+    def test_vec16(self):
+        cert = b'ssh-rsa-cert-v01@openssh.com AAAAHHNzaC1yc2EtY2VydC12MDFAb3BlbnNzaC5jb20AAAAgzOfF3/f7wgGG1ooyGIo3tIXwtDgYMrRlUS5PX/mOfCIAAAADAQABAAABgQDE2888o13hm3qVt39n7ulU98j3/yNNQdk6vIE/oQpLUj8h5awcTTRiz7VXXFX6vre/CwzG+jW9UNdnuLMfPcAXaIv+iE2gVhOEFQi6RezhV6cTn6GFsKMIJEjfHFj9S039QkibSxf9bPeUwpnyW7yQiR50I5es0RIl/VgsZICUjFtiYJusncpA3MxSXb7d8gYl2k+MvpMk3SPFYNWxp4WC0ieUzvB3KkDC5nu4hEqSZzgwDl8H9zLwcZUbX0Ho1Xbqjeeha/TstrqurDTH9ytjX6XVc0sWqGTmcFd/z5BYDaGYGvy0/peY8qGpmFyyghpLDZJSR0aR5dl53UvDlfNqomiRsa5Kf82TQMfwOgH9IzjLAYVOKtL2GfKKUzkfRbg+oWpqo6dmpyxlxMbNyM8uS6x1dlVE6GyY9GFu4kVZTS+FtFcvLSTmngjsELy2Zp0v//qM//fDjts1odHfhgwSn1SnQgduKs2O3y7mQ04HtZ4X44lQTTG+CkvcdjkpAxkAAAAAAAAAAAAAAAEAAAALYm9iYW5pYm9rYXkAAAAPAAAAC2JvYmFuaWJva2F5AAAAAAAAAAD//////////wAAAAAAAACCAAAAFXBlcm1pdC1YMTEtZm9yd2FyZGluZwAAAAAAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAADnBlcm1pdC11c2VyLXJjAAAAAAAAAAAAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIJofjrP/2lrZALvX9ZlWBLlhSylKTSBrklur+vNECkOeAAAAUwAAAAtzc2gtZWQyNTUxOQAAAEB7FM8nceeWRdDLdtBO6zsNHs6+kRabUHuTdkeUFD7exvEAEAzrv3ZNGdT6M6Yg93eBCP6F8JxEoyxkzcIELYwA kali@LSG-AZ0038709'
+        self._run_openssh_pub_test(cert)
+
+
+    def test_vec17(self):
+        cert = b'ssh-ed25519-cert-v01@openssh.com AAAAIHNzaC1lZDI1NTE5LWNlcnQtdjAxQG9wZW5zc2guY29tAAAAIFtZb0ysOwnd3whyIBHt0ZUrS5KSsBba80YioS2ugPu2AAAAIGEdUcPU2IqxIMhf5rhcnzIMs36WSgly/ZTZ65c0r2BAAAAAAAAAAAAAAAABAAAAC2JvYmFuaWJva2F5AAAADwAAAAtib2Jhbmlib2theQAAAAAAAAAA//////////8AAAAAAAAAggAAABVwZXJtaXQtWDExLWZvcndhcmRpbmcAAAAAAAAAF3Blcm1pdC1hZ2VudC1mb3J3YXJkaW5nAAAAAAAAABZwZXJtaXQtcG9ydC1mb3J3YXJkaW5nAAAAAAAAAApwZXJtaXQtcHR5AAAAAAAAAA5wZXJtaXQtdXNlci1yYwAAAAAAAAAAAAABsgAAAAdzc2gtZHNzAAAAgQDYP2UpmlqWasH+ZJfv6r6qYlPZvh/xD9QFD01w424GsM+93gqbtR2TWZ5nVV4ywGfjNAxHl8KX+N8xAxukWvj10L+59yBTotjUqiD7BTDseOkVoWtKZ3wZaAVLjxm3XQhGnCgR1EhsM+UBEkJ4P+ewIsUo0SMZFjlBAUg3Z5OwoQAAABUA+Ai1Pq1kk9Qn6T9IL4fgAkgYZZcAAACAP6zuIElDNtBjIU5FwaAtLIjeHmwFJ30NIg/El+U+SkbeBg0PcYTobf6x/io2OFqldSJCdjxzfogRP3nWYveyEC+J/YW4tOkfCVkHcDKZyzqt1WeoTooHDqj57xPqxpwaZgeHsov09TQq2Ztzupiz6UpbTDr1DWmn8hmx+XpAgVUAAACBAKDkfaP9sP/gselQgw2fVdELXVlUl1i2Z7N7Q+oueuMgR3qCYjX1wP0yHOzgcIDLkkBYnWbnFs+QP06yAhSv1v67nCRPAYKL7ac7SLp7evFIOSR2nBZ3vwXG6qlB1dhnA1TGyhj3TdYrJ/hLC08ueHwBeZUdEwXIriB8OBFUCH2iAAAANwAAAAdzc2gtZHNzAAAAKEETou5Xl5WsUtZ/YgMeZxggOpim3/pZekurctU21fnwcEyjs/7u61c= kali@LSG-AZ0038709'
+        self._run_openssh_pub_test(cert)

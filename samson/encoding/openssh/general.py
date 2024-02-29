@@ -1,6 +1,4 @@
-from samson.encoding.openssh.core.literal import Literal
-from samson.encoding.openssh.core.kdf_params import KDFParams
-from samson.encoding.openssh.core.openssh_private_header import OpenSSHPrivateHeader
+from samson.encoding.openssh.core import PrivateKeyContainer, OpenSSHPrivateHeader, OpenSSHPrivateKey, KDFParams, S, optional_kdf_params, PublicPrivatePair, PublicKey
 from samson.encoding.pem import pem_encode
 from samson.encoding.general import PKIEncoding
 from samson.utilities.bytes import Bytes
@@ -15,60 +13,69 @@ def check_decrypt(params: bytes, decryptor: FunctionType) -> (bytes, bytes):
     Parameters:
         params   (bytes): Current encoded parameter buffer.
         decryptor (func): Function to decrypt the private key.
-    
+
     Returns:
         (bytes, bytes): Formatted as (check bytes, left over bytes).
     """
     if decryptor:
         params = decryptor(params)
 
-    check_bytes, params = Literal('check_bytes', length=8).unpack(params)
-    check1, check2 = check_bytes.chunk(4)
+    key = PrivateKeyContainer.deserialize(params)
 
-    if check1 != check2:
-        raise ValueError(f'Private key check bytes incorrect. Is it encrypted? check1: {check1}, check2: {check2}')
+    if key.check_1 != key.check_2:
+        raise ValueError(f'Private key check bytes incorrect. Is it encrypted? check1: {key.check_1}, check2: {key.check_2}')
 
-    return check_bytes, params
-
+    return bytes(key.check_1) + bytes(key.check_2), params
 
 
-def generate_openssh_private_key(public_key: object, private_key: object, encode_pem: bool=True, marker: str=None, encryption: str=None, iv: bytes=None, passphrase: bytes=None) -> bytes:
+
+def generate_openssh_private_key(public_key: object, private_key: object, encode_pem: bool=True, marker: str=None, encryption: str=None, iv: bytes=None, passphrase: bytes=None, header=None) -> bytes:
     """
     Internal function. Generates OpenSSH private keys for various PKI.
 
     Parameters:
-        public_key  (object): OpenSSH public key object.
-        private_key (object): OpenSSH private key object.
-        encode_pem    (bool): Whether or not to PEM encode.
-        marker         (str): PEM markers.
-        encryption     (str): Encryption algorithm to use.
-        iv           (bytes): IV for encryption algorithm.
-        passphrase   (bytes): Passphrase for KDF.
+        public_key           (object): OpenSSH public key object.
+        private_key          (object): OpenSSH private key object.
+        encode_pem             (bool): Whether or not to PEM encode.
+        marker                  (str): PEM markers.
+        encryption              (str): Encryption algorithm to use.
+        iv                    (bytes): IV for encryption algorithm.
+        passphrase            (bytes): Passphrase for KDF.
+        header (OpenSSHPrivateHeader): Header to use.
 
     Returns:
         bytes: OpenSSH encoded PKI object.
     """
-    if encryption:
-        kdf_params = KDFParams('kdf_params', iv or Bytes.random(16), 16)
-    else:
-        kdf_params = KDFParams('kdf_params', b'', b'')
+    encryption = encryption or (header.encryption if header else None) or b'none'
 
     if encryption and type(encryption) is str:
         encryption = encryption.encode('utf-8')
 
+    if encryption != b'none':
+        if iv or not header:
+            kdf_params = KDFParams(salt=iv or Bytes.random(16), rounds=header.kdf_params.rounds if header else 16)
+        elif header:
+            kdf_params = header.kdf_params.val.val
+        else:
+            kdf_params = S.Null()
+    else:
+        kdf_params = S.Null()
+
+
     header = OpenSSHPrivateHeader(
-        header=OpenSSHPrivateHeader.MAGIC_HEADER,
-        encryption=encryption or b'none',
-        kdf=b'bcrypt' if encryption else b'none',
-        kdf_params=kdf_params,
-        num_keys=1
+        encryption=encryption,
+        kdf=b'bcrypt' if encryption != b'none' else ((header.kdf if header else None) or b'none'),
+        kdf_params=S.Opaque[S.Selector[optional_kdf_params]]((kdf_params))
     )
 
+    ppp = PublicPrivatePair(public_key, private_key)
+    
     encryptor, padding_size = None, 8
     if passphrase:
         encryptor, padding_size = header.generate_encryptor(passphrase)
+        ppp = ppp.encrypt(encryptor, padding_size)
 
-    encoded = header.pack() + public_key.pack(public_key) + private_key.pack(private_key, encryptor, padding_size)
+    encoded = OpenSSHPrivateKey(header, OpenSSHPrivateKey.__annotations__['keypairs'](S.SizedList[type(ppp)]([ppp]))).serialize()
     if encode_pem:
         encoded = pem_encode(encoded, marker or 'OPENSSH PRIVATE KEY')
 
@@ -88,14 +95,14 @@ def generate_openssh_public_key_params(encoding: PKIEncoding, ssh_header: bytes,
     Returns:
         (bytes, bool, str, bool): PKI public key parameters formatted as (encoded, default_pem, default_marker, use_rfc_4716).
     """
-    if encoding == PKIEncoding.OpenSSH:
+    if encoding in (PKIEncoding.OpenSSH, PKIEncoding.OpenSSH_CERT):
         if user and type(user) is str:
             user = user.encode('utf-8')
 
-        encoded = ssh_header + b' ' + base64.b64encode(public_key.pack(public_key)[4:]) + b' ' + (user or b'nohost@localhost')
+        encoded = ssh_header + b' ' + base64.b64encode(public_key.serialize()) + b' ' + (user or b'nohost@localhost')
 
     elif encoding == PKIEncoding.SSH2:
-        encoded = public_key.pack(public_key)[4:]
+        encoded = public_key.serialize()[4:]
 
     else:
         raise ValueError(f'Unsupported encoding "{encoding}"')
@@ -104,16 +111,14 @@ def generate_openssh_public_key_params(encoding: PKIEncoding, ssh_header: bytes,
 
 
 
-def parse_openssh_key(buffer: bytes, ssh_header: bytes, public_key_cls: object, private_key_cls: object, passphrase: bytes) -> (object, object):
+def parse_openssh_key(buffer: bytes, ssh_header: bytes, passphrase: bytes) -> (object, object):
     """
     Internal function. Parses various PKI keys.
 
     Parameters:
-        buffer           (bytes): Byte-encoded OpenSSH key.
-        ssh_header       (bytes): PKI-specific SSH header.
-        public_key_cls  (object): OpenSSH public key class.
-        private_key_cls (object): OpenSSH private key class.
-        passphrase       (bytes): Passphrase for KDF.
+        buffer     (bytes): Byte-encoded OpenSSH key.
+        ssh_header (bytes): PKI-specific SSH header.
+        passphrase (bytes): Passphrase for KDF.
 
     Returns:
         (object, object): Parsed private and public key objects formatted as (private key, public key).
@@ -121,16 +126,22 @@ def parse_openssh_key(buffer: bytes, ssh_header: bytes, public_key_cls: object, 
     priv = None
 
     # SSH private key?
-    if OpenSSHPrivateHeader.MAGIC_HEADER in buffer:
-        header, left_over = OpenSSHPrivateHeader.unpack(buffer)
-        pub, left_over = public_key_cls.unpack(left_over)
+    if OpenSSHPrivateHeader.magic in buffer:
+        _, key = OpenSSHPrivateKey.deserialize(buffer)
 
         decryptor = None
         if passphrase:
-            decryptor = header.generate_decryptor(passphrase)
+            decryptor      = key.header.generate_decryptor(passphrase)
+            priv_container = key.keypairs.val[0].decrypt(decryptor).private.val.val
+        else:
+            priv_container = key.keypairs.val[0].private.val.val
 
-        priv, _left_over = private_key_cls.unpack(left_over, decryptor)
-        user = priv.host
+        pub     = key.keypairs.val[0].public.val.key.val
+        user    = priv_container.host.val
+        priv    = priv_container.key.key.val
+        check_1 = priv_container.check_1.val
+        check_2 = priv_container.check_2.val
+        header  = key.header
 
     else:
         if buffer.split(b' ')[0][:len(ssh_header)] == ssh_header:
@@ -141,6 +152,10 @@ def parse_openssh_key(buffer: bytes, ssh_header: bytes, public_key_cls: object, 
             body = buffer
             user = None
 
-        pub, _ = public_key_cls.unpack(body, already_unpacked=True)
+        _, pub  = PublicKey.deserialize(body)
+        pub     = pub.key.val
+        check_1 = None
+        check_2 = None
+        header  = None
 
-    return priv, pub, Bytes(user) if user else user
+    return priv, pub, Bytes(user) if user else user, check_1, check_2, header

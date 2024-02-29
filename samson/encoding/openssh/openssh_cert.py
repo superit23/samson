@@ -1,6 +1,6 @@
-from samson.auxiliary.serialization import Serializable
 from samson.core.base_object import BaseObject
 from samson.encoding.general import PKIEncoding, PKIAutoParser, EncodingScheme
+from samson.encoding.openssh.core import *
 from samson.utilities.bytes import Bytes
 from samson.encoding.openssh.openssh_ecdsa_key import SSH_INVERSE_CURVE_LOOKUP, SSH_CURVE_NAME_LOOKUP
 from samson.hashes.sha1 import SHA1
@@ -11,185 +11,6 @@ from copy import deepcopy
 # https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.certkeys
 #####
 
-S = Serializable[4]
-
-class SSHCertType(S.Enum[S.UInt32]):
-    USER = 1
-    HOST = 2
-
-
-class SSHECDSASig(S):
-    r: S.MPInt
-    s: S.MPInt
-
-    def get_sig(self):
-        return int(self.r), int(self.s)
-
-
-class SSHDSASig(S):
-    r: S.UInt[160]
-    s: S.UInt[160]
-
-    def get_sig(self):
-        return int(self.r), int(self.s)
-
-
-class SSHRSASig(S):
-    s: S.GreedyBytes
-
-    def get_sig(self):
-        return Bytes(bytes(self.s))
-
-
-class SSHEdDSASig(S):
-    s: S.Bytes[64]
-
-    def get_sig(self):
-        return bytes(self.s)
-
-
-
-class SSHSignature(S):
-    algorithm: S.Bytes
-    signature: S.Bytes
-
-    SIG_ALG_DEFAULT = None
-
-    def subcls_deserialize(self):
-        for klass in SSHSignature.__subclasses__():
-            if self.algorithm.val in klass.SIG_ALGS:
-                return klass.deserialize(self.serialize())[1]
-        return self
-
-
-class ECDSASSHSignature(SSHSignature):
-    algorithm: S.Bytes = b''
-    signature: S.Opaque[SSHECDSASig]
-
-    SIG_ALGS = (
-        b'ecdsa-sha2-nistp256',
-        b'ecdsa-sha2-nistp384',
-        b'ecdsa-sha2-nistp521'
-    )
-
-    @staticmethod
-    def sign(alg, key, data):
-        r,s = key.sign(data)
-        return SSHECDSASig(r, s)
-
-
-
-class DSASSHSignature(SSHSignature):
-    algorithm: S.Bytes = b''
-    signature: S.Opaque[SSHDSASig]
-
-    SIG_ALGS = (
-        b'ssh-dss',
-    )
-
-    SIG_ALG_DEFAULT = b'ssh-dss'
-
-    @staticmethod
-    def sign(alg, key, data):
-        r,s = key.sign(data)
-        return SSHDSASig(r, s)
-
-
-class RSASSHSignature(SSHSignature):
-    algorithm: S.Bytes = b''
-    signature: S.Opaque[SSHRSASig]
-
-    SIG_ALGS = (
-        b'ssh-rsa',
-        b'rsa-sha2-512'
-    )
-
-    SIG_ALG_DEFAULT = b'rsa-sha2-512'
-
-    @staticmethod
-    def sign(alg, key, data):
-        from samson.protocols.pkcs1v15_rsa_signer import PKCS1v15RSASigner
-
-        if alg == b'ssh-rsa':
-            hash_obj = SHA1()
-        elif alg == b'rsa-sha2-512':
-            hash_obj = SHA512()
-        else:
-            raise ValueError(f'SSH RSA algorithm {alg.decode()} does not exist')
-
-        signer = PKCS1v15RSASigner(key, hash_obj)
-        return SSHRSASig(signer.sign(data))
-
-
-class EdDSASSHSignature(SSHSignature):
-    algorithm: S.Bytes = b''
-    signature: S.Opaque[SSHEdDSASig]
-
-    SIG_ALGS = (
-        b'ssh-ed25519',
-    )
-
-    SIG_ALG_DEFAULT = b'ssh-ed25519'
-
-    @staticmethod
-    def sign(alg, key, data):
-        s = key.sign(data)
-        return SSHEdDSASig(s)
-
-
-class SSHArmoredSignature(S):
-    magic: S.Bytes[6]
-    sig_version: S.UInt32
-    public_key: S.Bytes
-    namespace: S.Bytes
-    reserved: S.Bytes
-    signature: S.Opaque[SSHSignature]
-
-
-class SSHOption(S):
-    name: S.Bytes
-    value: S.Bytes
-
-
-class SSHCertificateHeader(S):
-    cert_type: S.Bytes
-    nonce: S.Bytes
-
-
-class SSHCertificateData(S):
-    serial: S.UInt64 = 0
-    type: SSHCertType = 1
-    key_id: S.Bytes = b''
-    valid_principals: S.Opaque[S.GreedyList[S.Bytes]] = b''
-    valid_after: S.UInt64 = 0
-    valid_before: S.UInt64 = 0
-    critical_options: S.Bytes = b''
-    extensions: S.Opaque[S.GreedyList[SSHOption]] = []
-    reserved: S.Bytes = b''
-    signature_key: S.Bytes = b''
-
-
-class RSAKey(S):
-    e: S.MPInt
-    n: S.MPInt
-
-
-class DSAKey(S):
-    p: S.MPInt
-    q: S.MPInt
-    g: S.MPInt
-    y: S.MPInt
-
-
-class ECDSAKey(S):
-    curve: S.Bytes
-    public_key: S.Bytes
-
-
-class EdDSAKey(S):
-    pk: S.Bytes
-
-
 
 SIG_CLS_LOOKUP = {
     'RSA': RSASSHSignature,
@@ -199,18 +20,18 @@ SIG_CLS_LOOKUP = {
 }
 
 
-
 class OpenSSHCertificate(BaseObject):
     ENCODING = PKIEncoding.OpenSSH_CERT
     HEADER   = None
     KEY_CLS  = SSHSignature
 
-    def __init__(self, key: object, nonce: bytes=None, data: SSHCertificateData=None, signature_key=None, signature: SSHSignature=None) -> None:
+    def __init__(self, key: object, nonce: bytes=None, data: SSHCertificateData=None, signature_key=None, signature: SSHSignature=None, user: bytes=None) -> None:
         self.key   = key
         self.nonce = nonce or Bytes.random(32)
         self.data  = data or SSHCertificateData()
         self.signature_key = signature_key
         self.signature     = signature
+        self.user          = user or b''
 
 
     @staticmethod
@@ -232,6 +53,7 @@ class OpenSSHCertificate(BaseObject):
 
     @classmethod
     def decode(cls, buffer: bytes, **kwargs):
+        user                 = buffer.split()[2]
         buffer               = cls._check_decode_b64(buffer)
         left_over, header    = SSHCertificateHeader.deserialize(buffer)
         left_over, key_data  = cls.KEY_CLS.deserialize(left_over)
@@ -241,7 +63,7 @@ class OpenSSHCertificate(BaseObject):
         key           = cls._extract_key(key_data)
         signature_key = PKIAutoParser.import_key(cert_data.signature_key.val)
 
-        return cls(key=key, nonce=header.nonce, data=cert_data, signature_key=signature_key, signature=signature.subcls_deserialize())
+        return cls(key=key, nonce=header.nonce, data=cert_data, signature_key=signature_key, signature=signature.subcls_deserialize(), user=user)
 
 
     @classmethod
@@ -278,7 +100,8 @@ class OpenSSHCertificate(BaseObject):
                 signature=sig_cls.sign(signing_alg, signing_key, self._build_body(ow_cert_data))
             )
 
-        return Bytes(self._build_body(ow_cert_data) + S.Opaque[type(ssh_signature)](ssh_signature).serialize())
+        complete_cert = Bytes(self._build_body(ow_cert_data) + S.Opaque[type(ssh_signature)](ssh_signature).serialize())
+        return b' '.join([self.get_header(), EncodingScheme.BASE64.encode(complete_cert), self.user])
 
 
     def verify(self, signing_key: 'EncodablePKI'=None):
@@ -352,16 +175,16 @@ class OpenSSHCertificate(BaseObject):
 
 class OpenSSHRSACertificate(OpenSSHCertificate):
     HEADER  = b'ssh-rsa-cert-v01@openssh.com'
-    KEY_CLS = RSAKey
+    KEY_CLS = RSAPublicKey
 
     @classmethod
-    def _extract_key(cls, key: RSAKey):
+    def _extract_key(cls, key: RSAPublicKey):
         from samson.public_key.rsa import RSA
         return RSA(n=key.n.val, e=key.e.val)
 
     @classmethod
     def _build_key(cls, key):
-        return RSAKey(n=key.n, e=key.e)
+        return RSAPublicKey(n=key.n, e=key.e)
 
 
 
@@ -372,7 +195,7 @@ class OpenSSHECDSACertificate(OpenSSHCertificate):
         b'ecdsa-sha2-nistp521-cert-v01@openssh.com'
     )
 
-    KEY_CLS = ECDSAKey
+    KEY_CLS = ECDSAPublicKey
 
     @classmethod
     def check(cls, buffer: bytes, **kwargs):
@@ -394,9 +217,10 @@ class OpenSSHECDSACertificate(OpenSSHCertificate):
         curve = SSH_INVERSE_CURVE_LOOKUP[key.curve.val.decode()]
         return ECDSA(G=curve.G, d=1, Q=curve.decode_point(key.public_key.val))
 
+
     @classmethod
     def _build_key(cls, key: 'ECDSA'):
-        return ECDSAKey(curve=SSH_CURVE_NAME_LOOKUP[key.G.curve], public_key=key.Q.serialize_uncompressed())
+        return ECDSAPublicKey(curve=SSH_CURVE_NAME_LOOKUP[key.G.curve], public_key=key.Q.serialize_uncompressed())
 
 
     def get_header(self):
@@ -405,29 +229,29 @@ class OpenSSHECDSACertificate(OpenSSHCertificate):
 
 class OpenSSHDSACertificate(OpenSSHCertificate):
     HEADER  = b'ssh-dss-cert-v01@openssh.com'
-    KEY_CLS = DSAKey
+    KEY_CLS = DSAPublicKey
 
     @classmethod
-    def _extract_key(cls, key: DSAKey):
+    def _extract_key(cls, key: DSAPublicKey):
         from samson.public_key.dsa import DSA
-        return DSA(p=key.p.val, q=key.q.val, g=key.g.val, y=key.y.val)
+        return DSA(p=key.p.val, q=key.q.val, g=key.g.val, y=key.y.val, hash_obj=SHA1())
 
     @classmethod
     def _build_key(cls, key: 'DSA'):
-        return DSAKey(p=key.p, q=key.q, g=key.g, y=key.y)
+        return DSAPublicKey(p=key.p, q=key.q, g=key.g, y=key.y)
 
 
 
 class OpenSSHEdDSACertificate(OpenSSHCertificate):
     HEADER  = b'ssh-ed25519-cert-v01@openssh.com'
-    KEY_CLS = EdDSAKey
+    KEY_CLS = EdDSAPublicKey
 
     @classmethod
-    def _extract_key(cls, key: EdDSAKey):
+    def _extract_key(cls, key: EdDSAPublicKey):
         from samson.public_key.eddsa import EdDSA, EdwardsCurve25519
         return EdDSA(curve=EdwardsCurve25519, A=key.pk.val, d=Bytes().zfill(1), a=1, clamp=False)
 
     @classmethod
     def _build_key(cls, key: 'EdDSA'):
-        return EdDSAKey(pk=key.encode_point(key.A))
+        return EdDSAPublicKey(pk=key.encode_point(key.A))
 

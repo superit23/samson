@@ -183,14 +183,15 @@ class SizedSerializable(BaseObject):
     def deserialize(cls, data: bytes, state: dict=None):
         if hasattr(data, 'native'):
             data = data.native()
-        
+
         return cls._deserialize(data, state)
 
 
     @classmethod
     def _deserialize(cls, data, state: dict=None):
-        objs = {}
+        objs  = {}
         objs2 = []
+
         for k, v in cls.__annotations__.items():
             data, obj = v.deserialize(data, state=objs)
             objs[k] = obj
@@ -200,8 +201,8 @@ class SizedSerializable(BaseObject):
 
 
     @classmethod
-    def from_bytes(cls, data):
-        return cls.deserialize(data)[1]
+    def from_bytes(cls, data, state=None):
+        return cls.deserialize(data, state=state)[1]
     
 
     def native(self):
@@ -380,7 +381,7 @@ class SizedSerializable(BaseObject):
                     pass
 
 
-                Inst.__name__ = f'{cls.__name__}'
+                Inst.__name__   = f'{cls.__name__}'
                 Inst.SELECTOR   = selector
                 Inst.FORCE_TYPE = False
                 return Inst
@@ -507,7 +508,7 @@ class SizedSerializable(BaseObject):
 
 
         class MPInt(Primitive, cls):
-            SIGNED = False
+            SIGNED = True
             val: int
 
             def serialize(self):
@@ -675,6 +676,41 @@ class SizedSerializable(BaseObject):
 
 
 
+        class PaddedMeta(type):
+            TYPED_CLS = None
+
+            def __getitem__(cls, params):
+                l_type, padder = params
+
+                class Inst(cls.TYPED_CLS or cls):
+                    val: l_type
+
+                Inst.__name__ = f'{cls.__name__}[{l_type.__name__}]'
+                Inst.PADDER   = padder
+                Inst.SUBTYPE  = l_type
+                return Inst
+
+
+
+        class Padded(cls, metaclass=PaddedMeta):
+            PADDER  = None
+            SUBTYPE = None
+            val: object
+
+            def serialize(self):
+                return self.PADDER.pad(self.val.serialize())
+
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                unpadded = cls.PADDER.unpad(data)
+                return cls.SUBTYPE._deserialize(unpadded, state)
+
+
+        cls.Padded = Padded
+
+
+
         class TypedEnum(cls, _Enum):
 
             def __init__(self, val) -> None:
@@ -762,7 +798,7 @@ class SizedSerializable(BaseObject):
             @classmethod
             def _deserialize(cls, data, state=None):
                 data, obj = Bytes._deserialize(data)
-                return data, cls.SUBTYPE.from_bytes(obj)
+                return data, cls.SUBTYPE.from_bytes(obj, state)
             
 
             def native(self):

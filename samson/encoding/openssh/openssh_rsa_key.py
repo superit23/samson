@@ -1,8 +1,6 @@
 from samson.math.general import mod_inv
-from samson.encoding.openssh.core.rsa_private_key import RSAPrivateKey
-from samson.encoding.openssh.core.rsa_public_key import RSAPublicKey
+from samson.encoding.openssh.core import RSAPrivateKey, RSAPublicKey, PrivateKey, PublicKey
 from samson.encoding.openssh.openssh_base import OpenSSHPrivateBase, OpenSSH2PublicBase, OpenSSHPublicBase
-
 
 class OpenSSHRSAKey(OpenSSHPrivateBase):
     PRIVATE_DECODER   = RSAPrivateKey
@@ -11,10 +9,10 @@ class OpenSSHRSAKey(OpenSSHPrivateBase):
 
 
     @classmethod
-    def extract_key(cls, priv, pub):
+    def _extract_key(cls, priv, pub):
         from samson.public_key.rsa import RSA
 
-        n, e, p, q = pub.n, pub.e, priv.p if priv else None, priv.q if priv else None
+        n, e, p, q = pub.n.val, pub.e.val, priv.p.val if priv else None, priv.q.val if priv else None
 
         rsa = RSA(n.bit_length(), n=n, p=p, q=q, e=e)
 
@@ -24,30 +22,27 @@ class OpenSSHRSAKey(OpenSSHPrivateBase):
 
 class OpenSSHRSAPrivateKey(OpenSSHRSAKey):
 
-    def build_keys(self, user):
-        public_key  = RSAPublicKey('public_key', self.key.n, self.key.e)
-        private_key = RSAPrivateKey(
-            'private_key',
-            check_bytes=None,
-            n=self.key.n,
-            e=self.key.e,
-            d=self.key.alt_d,
-            q_mod_p=mod_inv(self.key.q, self.key.p),
-            p=self.key.p,
-            q=self.key.q,
-            host=user
+    def _build_priv_key(self):
+        return PrivateKey(
+            b'ssh-rsa',
+            RSAPrivateKey(
+                n=self.key.n,
+                e=self.key.e,
+                d=max(self.key.d, self.key.alt_d),
+                q_mod_p=mod_inv(self.key.q, self.key.p),
+                p=self.key.p,
+                q=self.key.q
+            )
         )
 
-        return public_key, private_key
+    @classmethod
+    def _build_key(cls, key: 'RSA'):
+        return PublicKey(b'ssh-rsa', RSAPublicKey(key.e, key.n))
 
 
 
-class OpenSSHRSAPublicKey(OpenSSHRSAKey, OpenSSHPublicBase):
+class OpenSSHRSAPublicKey(OpenSSHRSAPrivateKey, OpenSSHPublicBase):
     PRIVATE_CLS = OpenSSHRSAPrivateKey
-
-    def build_pub(self):
-        return RSAPublicKey('public_key', self.key.n, self.key.e)
-
 
 
 class SSH2RSAPublicKey(OpenSSHRSAPublicKey, OpenSSH2PublicBase):

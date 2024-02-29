@@ -1,7 +1,5 @@
-from samson.encoding.openssh.core.dsa_private_key import DSAPrivateKey
-from samson.encoding.openssh.core.dsa_public_key import DSAPublicKey
+from samson.encoding.openssh.core import DSAPrivateKey, DSAPublicKey, PrivateKey, PublicKey
 from samson.encoding.openssh.openssh_base import OpenSSHPrivateBase, OpenSSHPublicBase, OpenSSH2PublicBase
-
 
 class OpenSSHDSAKey(OpenSSHPrivateBase):
     PRIVATE_DECODER   = DSAPrivateKey
@@ -10,10 +8,10 @@ class OpenSSHDSAKey(OpenSSHPrivateBase):
 
 
     @classmethod
-    def extract_key(cls, priv, pub):
+    def _extract_key(cls, priv, pub):
         from samson.public_key.dsa import DSA
         from samson.hashes.sha1 import SHA1
-        p, q, g, y, x = pub.p, pub.q, pub.g, pub.y, priv.x if priv else 0
+        p, q, g, y, x = pub.p.val, pub.q.val, pub.g.val, pub.y.val, priv.x.val if priv else 1
 
         dsa = DSA(SHA1(), p=p, q=q, g=g, x=x)
         dsa.y = y
@@ -24,29 +22,27 @@ class OpenSSHDSAKey(OpenSSHPrivateBase):
 
 class OpenSSHDSAPrivateKey(OpenSSHDSAKey):
 
-    def build_keys(self, user):
-        public_key  = DSAPublicKey('public_key', self.key.p, self.key.q, self.key.g, self.key.y)
-        private_key = DSAPrivateKey(
-            'private_key',
-            check_bytes=None,
-            p=self.key.p,
-            q=self.key.q,
-            g=self.key.g,
-            y=self.key.y,
-            x=self.key.x,
-            host=user
+    def _build_priv_key(self):
+        return PrivateKey(
+            b'ssh-dss',
+            DSAPrivateKey(
+                p=self.key.p,
+                q=self.key.q,
+                g=self.key.g,
+                y=self.key.y,
+                x=self.key.x,
+            )
         )
 
-        return public_key, private_key
+
+    @classmethod
+    def _build_key(cls, key: 'DSA'):
+        return PublicKey(b'ssh-dss', DSAPublicKey(key.p, key.q, key.g, key.y))
 
 
-class OpenSSHDSAPublicKey(OpenSSHDSAKey, OpenSSHPublicBase):
+
+class OpenSSHDSAPublicKey(OpenSSHDSAPrivateKey, OpenSSHPublicBase):
     PRIVATE_CLS = OpenSSHDSAPrivateKey
-
-    def build_pub(self):
-        return DSAPublicKey('public_key', self.key.p, self.key.q, self.key.g, self.key.y)
-
-
 
 
 class SSH2DSAPublicKey(OpenSSHDSAPublicKey, OpenSSH2PublicBase):
