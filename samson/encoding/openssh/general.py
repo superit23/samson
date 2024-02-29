@@ -1,6 +1,7 @@
-from samson.encoding.openssh.core import PrivateKeyContainer, OpenSSHPrivateHeader, OpenSSHPrivateKey, KDFParams, S, optional_kdf_params, PublicPrivatePair, PublicKey
+from samson.encoding.openssh.core import PrivateKeyContainer, OpenSSHPrivateHeader, OpenSSHPrivateKey, KDFParams, S, optional_kdf_params, PublicPrivatePair, PublicKey, EncryptedPublicPrivatePair
 from samson.encoding.pem import pem_encode
 from samson.encoding.general import PKIEncoding
+from samson.utilities.exceptions import DecryptionException
 from samson.utilities.bytes import Bytes
 import base64
 from types import FunctionType
@@ -102,7 +103,7 @@ def generate_openssh_public_key_params(encoding: PKIEncoding, ssh_header: bytes,
         encoded = ssh_header + b' ' + base64.b64encode(public_key.serialize()) + b' ' + (user or b'nohost@localhost')
 
     elif encoding == PKIEncoding.SSH2:
-        encoded = public_key.serialize()[4:]
+        encoded = public_key.serialize()
 
     else:
         raise ValueError(f'Unsupported encoding "{encoding}"')
@@ -125,16 +126,29 @@ def parse_openssh_key(buffer: bytes, ssh_header: bytes, passphrase: bytes) -> (o
     """
     priv = None
 
+    def is_encrypted(private):
+        return type(private) is EncryptedPublicPrivatePair
+
     # SSH private key?
     if OpenSSHPrivateHeader.magic in buffer:
         _, key = OpenSSHPrivateKey.deserialize(buffer)
 
         decryptor = None
         if passphrase:
-            decryptor      = key.header.generate_decryptor(passphrase)
-            priv_container = key.keypairs.val[0].decrypt(decryptor).private.val.val
+            decryptor = key.header.generate_decryptor(passphrase)
+            ppp       = key.keypairs.val[0].decrypt(decryptor)
+
+            if is_encrypted(ppp):
+                raise DecryptionException("SSH private key could not be decrypted with passphrase", key)
+
+            priv_container = ppp.private.val.val
         else:
-            priv_container = key.keypairs.val[0].private.val.val
+            ppp = key.keypairs.val[0]
+
+            if is_encrypted(ppp):
+                raise DecryptionException("SSH private key is encrypted and no passphrase was supplied", key)
+
+            priv_container = ppp.private.val.val
 
         pub     = key.keypairs.val[0].public.val.key.val
         user    = priv_container.host.val

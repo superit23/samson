@@ -1,5 +1,6 @@
 from samson.math.algebra.curves.named import P192, P224, P384, P256, P521
 from samson.utilities.bytes import Bytes
+from samson.utilities.exceptions import DecryptionException
 from samson.public_key.ecdsa import ECDSA
 from samson.encoding.general import PKIEncoding
 from samson.encoding.pem import RFC1423Algorithms
@@ -377,7 +378,7 @@ class ECDSATestCase(unittest.TestCase):
     def test_import_openssh(self):
         for key, passphrase in [TEST_OPENSSH0, TEST_OPENSSH1, TEST_OPENSSH2, TEST_OPENSSH3]:
             if passphrase:
-                with self.assertRaises(ValueError):
+                with self.assertRaises(DecryptionException):
                     ECDSA.import_key(key).key
 
             ecdsa = ECDSA.import_key(key, passphrase=passphrase).key
@@ -395,12 +396,14 @@ class ECDSATestCase(unittest.TestCase):
             curve = random.choice(curves)
             ecdsa = ECDSA(curve.G)
             passphrase = None
+            encryption = None
 
 
             if i < num_enc:
+                encryption = b'aes256-ctr'
                 passphrase = Bytes.random(Bytes.random(1).int())
 
-            priv        = ecdsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=b'aes256-ctr', passphrase=passphrase)
+            priv        = ecdsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=encryption, passphrase=passphrase)
             pub_openssh = ecdsa.export_public_key(encoding=PKIEncoding.OpenSSH).encode()
             pub_ssh2    = ecdsa.export_public_key(encoding=PKIEncoding.SSH2).encode()
 
@@ -916,3 +919,8 @@ class ECDSATestCase(unittest.TestCase):
         s = 0x1FBD0013C674AA79CB39849527916CE301C66EA7CE8B80682786AD60F98F7E78A19CA69EFF5C57400E3B3A0AD66CE0978214D13BAF4E9AC60752F7B155E2DE4DCE3
 
         self._run_521(message, H, k, (r, s))
+
+
+
+if __name__ == "__main__":
+    unittest.main()

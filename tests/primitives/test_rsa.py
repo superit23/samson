@@ -1,5 +1,6 @@
 from samson.public_key.rsa import RSA
 from samson.utilities.bytes import Bytes
+from samson.utilities.exceptions import DecryptionException
 from samson.encoding.pem import RFC1423Algorithms
 from samson.encoding.general import PKIEncoding
 from samson.math.general import mod_inv, is_prime
@@ -651,7 +652,7 @@ class RSATestCase(unittest.TestCase):
     def test_import_openssh(self):
         for key, passphrase in [TEST_OPENSSH0, TEST_OPENSSH1, TEST_OPENSSH2, TEST_OPENSSH3]:
             if passphrase:
-                with self.assertRaises(ValueError):
+                with self.assertRaises(DecryptionException):
                     RSA.import_key(key).key
 
             rsa = RSA.import_key(key, passphrase=passphrase).key
@@ -669,10 +670,13 @@ class RSATestCase(unittest.TestCase):
             bits = 128 + (Bytes.random(2).int() % (4096 - 128))
             rsa  = RSA(bits)
             passphrase = None
+            encryption = None
+
             if i < num_enc:
+                encryption = b'aes256-ctr'
                 passphrase = Bytes.random(Bytes.random(1).int())
 
-            priv        = rsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=b'aes256-ctr', passphrase=passphrase)
+            priv        = rsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=encryption, passphrase=passphrase)
             pub_openssh = rsa.export_public_key(encoding=PKIEncoding.OpenSSH).encode()
             pub_ssh2    = rsa.export_public_key(encoding=PKIEncoding.SSH2).encode()
 

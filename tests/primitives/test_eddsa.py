@@ -1,4 +1,5 @@
 from samson.utilities.bytes import Bytes
+from samson.utilities.exceptions import DecryptionException
 from samson.encoding.general import PKIEncoding
 from samson.public_key.eddsa import EdDSA
 from samson.math.algebra.curves.named import EdwardsCurve25519, EdwardsCurve448
@@ -110,7 +111,7 @@ class EdDSATestCase(unittest.TestCase):
         # TODO: This only exercises it. Does not prove against known-good
         for key, passphrase in [TEST_OPENSSH0, TEST_OPENSSH1, TEST_OPENSSH2, TEST_OPENSSH3]:
             if passphrase:
-                with self.assertRaises(ValueError):
+                with self.assertRaises(DecryptionException):
                     EdDSA.import_key(key).key
 
             EdDSA.import_key(key, passphrase=passphrase).key
@@ -122,10 +123,14 @@ class EdDSATestCase(unittest.TestCase):
         for i in range(num_runs):
             eddsa = EdDSA()
             passphrase = None
+            encryption = None
+
+
             if i < num_enc:
+                encryption = b'aes256-ctr'
                 passphrase = Bytes.random(Bytes.random(1).int())
 
-            priv        = eddsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=b'aes256-ctr', passphrase=passphrase)
+            priv        = eddsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=encryption, passphrase=passphrase)
             pub_openssh = eddsa.export_public_key(encoding=PKIEncoding.OpenSSH).encode()
             pub_ssh2    = eddsa.export_public_key(encoding=PKIEncoding.SSH2).encode()
 

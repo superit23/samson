@@ -1,5 +1,6 @@
 from samson.public_key.dsa import DSA
 from samson.utilities.bytes import Bytes
+from samson.utilities.exceptions import DecryptionException
 from samson.encoding.pem import RFC1423Algorithms
 from samson.encoding.general import PKIEncoding
 from samson.math.general import is_prime
@@ -523,7 +524,7 @@ class DSATestCase(unittest.TestCase):
     def test_import_openssh(self):
         for key, passphrase in [TEST_OPENSSH0, TEST_OPENSSH1, TEST_OPENSSH2, TEST_OPENSSH3]:
             if passphrase:
-                with self.assertRaises(ValueError):
+                with self.assertRaises(DecryptionException):
                     DSA.import_key(key).key
 
             dsa = DSA.import_key(key, passphrase=passphrase).key
@@ -539,10 +540,14 @@ class DSATestCase(unittest.TestCase):
         for i in range(num_runs):
             dsa = DSA()
             passphrase = None
+            encryption = None
+
+
             if i < num_enc:
+                encryption = b'aes256-ctr'
                 passphrase = Bytes.random(Bytes.random(1).int())
 
-            priv        = dsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=b'aes256-ctr', passphrase=passphrase)
+            priv        = dsa.export_private_key(encoding=PKIEncoding.OpenSSH).encode(encryption=encryption, passphrase=passphrase)
             pub_openssh = dsa.export_public_key(encoding=PKIEncoding.OpenSSH).encode()
             pub_ssh2    = dsa.export_public_key(encoding=PKIEncoding.SSH2).encode()
 

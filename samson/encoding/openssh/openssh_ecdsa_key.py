@@ -2,7 +2,7 @@ from samson.encoding.openssh.core import ECDSAPrivateKey, ECDSAPublicKey, Privat
 from samson.encoding.openssh.openssh_base import OpenSSHPrivateBase, OpenSSHPublicBase, OpenSSH2PublicBase
 from samson.utilities.bytes import Bytes
 from samson.math.algebra.curves.named import P192, P224, P256, P384, P521, GOD521
-from samson.hashes.sha2 import SHA256, SHA384, SHA512
+from samson.hashes.sha2 import SHA256, SHA384, SHA512, SHA224
 import math
 
 
@@ -18,6 +18,8 @@ SSH_CURVE_NAME_LOOKUP = {
 SSH_INVERSE_CURVE_LOOKUP = {v.decode():k for k, v in SSH_CURVE_NAME_LOOKUP.items() if k != GOD521}
 
 CURVE_HASH_LOOKUP = {
+    P192: SHA224(),
+    P224: SHA224(),
     P256: SHA256(),
     P384: SHA384(),
     P521: SHA512(),
@@ -52,7 +54,9 @@ class OpenSSHECDSAKey(OpenSSHPrivateBase):
         from samson.public_key.ecdsa import ECDSA
 
         curve, x_y_bytes, d = pub.curve.val, pub.public_key.val, priv.d.val if priv else 1
-        curve = SSH_INVERSE_CURVE_LOOKUP[curve.decode()]
+
+        if type(curve) is not type(P192):
+            curve = SSH_INVERSE_CURVE_LOOKUP[curve.decode()]
 
         ecdsa   = ECDSA(G=curve.G, hash_obj=CURVE_HASH_LOOKUP[curve], d=d)
         ecdsa.Q = curve(*ECDSA.decode_point(x_y_bytes))
