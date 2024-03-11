@@ -101,6 +101,11 @@ class BMatrix(object):
         return self.rows == other.rows
 
 
+    def __add__(self, other):
+        assert len(self.rows) == len(other.rows) and self.num_cols == other.num_cols
+        return BMatrix([a^b for a,b in zip(self.rows, other.rows)], num_cols=self.num_cols)
+
+
 ###############
 # SUBROUTINES #
 ###############
