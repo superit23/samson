@@ -90,7 +90,7 @@ class BMatrix(object):
 
     def __mul__(self, other):
         ot = other.T
-        return BMatrix([int(''.join([str(parity(r & b1)) for b1 in ot.rows])[::-1], 2) for r in self.rows], num_cols=self.num_cols)
+        return BMatrix([int(''.join([str(parity(r & b1)) for b1 in ot.rows])[::-1], 2) for r in self.rows], num_cols=other.num_cols)
 
 
     def __pow__(self, exp):
@@ -104,6 +104,31 @@ class BMatrix(object):
     def __add__(self, other):
         assert len(self.rows) == len(other.rows) and self.num_cols == other.num_cols
         return BMatrix([a^b for a,b in zip(self.rows, other.rows)], num_cols=self.num_cols)
+
+
+    def right_kernel(self):
+        sols, marks, M = ge_f2_nullspace(self)
+
+        N = []
+        for sol in sols:
+            row = solve_row(sol, M, marks)
+            N.append(sum(1 << i for i in row))
+        
+        return BMatrix(N, self.num_cols)
+
+
+    @staticmethod
+    def from_native_matrix(mat: 'Matrix'):
+        assert mat.coeff_ring.order() == 2
+        return BMatrix([int("".join(([str(int(c)) for c in r[::-1]])), 2) for r in mat.rows], mat.num_cols)
+
+
+    def to_native_matrix(self):
+        rows = []
+        for row in self.rows:
+            rows.append([int(b) for b in bin(row)[2:].zfill(self.num_cols)[::-1]])
+        
+        return Matrix(rows, ZZ/ZZ(2))
 
 
 ###############
