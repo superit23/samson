@@ -45,7 +45,7 @@ class MangersAttack(object):
 
         Parameters:
             ciphertext (bytes): The ciphertext to decrypt.
-        
+
         Returns:
             Bytes: The ciphertext's corresponding plaintext.
         """

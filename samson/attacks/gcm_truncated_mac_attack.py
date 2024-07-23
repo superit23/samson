@@ -3,10 +3,13 @@ from samson.math.algebra.rings.integer_ring import ZZ
 from samson.math.dense_vector import DenseVector
 from samson.math.matrix import Matrix
 from samson.math.algebra.fields.gf2 import GF2
-from samson.math.general import is_power_of_two
+from samson.utilities.runtime import RUNTIME
 from samson.utilities.manipulation import reverse_bits
 from samson.utilities.bytes import Bytes
 import math
+
+import logging
+log = logging.getLogger(__name__)
 
 gf128 = GF2(128)
 R     = ZZ/ZZ(2)
@@ -18,10 +21,6 @@ def get_ns_vec(K, i):
             result += DenseVector(r)
     
     return result
-
-
-def reverse_int(i, bits):
-    return int(bin(int(i))[2:].zfill(bits)[::-1], 2)
 
 
 def gf2_to_vec(a, size=128):
@@ -129,7 +128,10 @@ class GCMTruncatedMACAttack(object):
         self.oracle = oracle
 
 
-    def execute(self, nonce: bytes, ciphertext: bytes, tag: bytes, tag_len: int):
+    @RUNTIME.report
+    def execute(self, nonce: bytes, ciphertext: bytes, tag: bytes):
+        # Prepare ciphertext for conversion
+        tag_len    = len(tag)*8
         ct_chunks  = ciphertext.chunk(16)
         num_coeffs = int(math.log2(len(ct_chunks)))
         c2         = [ct_chunks[2**num_coeffs - (2**i-1)] for i in range(1, num_coeffs+1)]
@@ -137,43 +139,54 @@ class GCMTruncatedMACAttack(object):
         Ms  = build_ms()
         Mss = [Ms**i for i in range(1,num_coeffs+1)]
 
+        # Initialize the main variables
         coeffs = [int_to_elem(c.int()) for c in c2]
         X      = BMatrix.from_native_matrix(Matrix.identity(128, R))
         K      = None
 
+        # Initialize progress indicators
+        oracle_iters = RUNTIME.report_progress(None, desc="Oracle calls")
+        progress     = RUNTIME.report_progress(None, total=128, desc="Authentication key bits")
+
         try:
             while not K or K.num_rows < 127:
-                # TODO: Making X the identity makes it work. K comes out correctly when I do this.
-                # X = BMatrix.from_native_matrix(Matrix.identity(128, R))
                 forged_coeffs = [gf128.random() for _ in range(len(coeffs))]
 
+                # Linear algebra
                 T = make_dependency_mat(coeffs, forged_coeffs, X, Mss, tag_len)
-                print(f"X {len(X.rows)} x {X.num_cols}")
-                print(f"T built {T.num_rows} x {T.num_cols}")
                 N = fast_kernel(T).to_native_matrix()
-                print(f"N found {N.num_rows} x {N.num_cols}")
 
+                log.debug(f"X {len(X.rows)} x {X.num_cols}")
+                log.debug(f"T built {T.num_rows} x {T.num_cols}")
+                log.debug(f"N found {N.num_rows} x {N.num_cols}")
+
+                # Online portion; attempt forgeries
                 for i in range(1, 2**len(N)):
                     adjusted = adjust_forged(forged_coeffs, N, i)
                     adj_ct   = adjust_ciphertext(adjusted, ct_chunks)
 
-                    if self.oracle(nonce, adj_ct + tag, adjusted):
+                    oracle_iters.update(1)
+
+                    if self.oracle(nonce, adj_ct + tag):
                         break
 
+                # Prepare and integrate new information
                 new_Ad = calculate_ad(coeffs, adjusted, Mss)
                 adj_Ad = (new_Ad * X).to_native_matrix()
                 new_Ad = new_Ad.to_native_matrix()
 
+                new_rows = prune_rows(new_Ad, adj_Ad, range(tag_len // 2, tag_len))
+                progress.update(len(new_rows))
+
                 if K:
-                    K = K.col_join(prune_rows(new_Ad, adj_Ad, range(tag_len // 2, tag_len)))
+                    K = K.col_join(new_rows)
                 else:
-                    K = prune_rows(new_Ad, adj_Ad, range(tag_len // 2, tag_len))
+                    K = new_rows
 
                 X = fast_kernel(K).T
 
-                print(K.num_rows, K.num_cols)
         except KeyboardInterrupt:
             return K
         
 
-        return [Bytes(r) for r in X.T.rows]
+        return [reverse_bits(r, 128) for r in X.T.rows]

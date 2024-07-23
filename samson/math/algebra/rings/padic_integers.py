@@ -302,6 +302,9 @@ class PAdicIntegerRing(Ring):
         if type(other) is int:
             return PAdicIntegerElement(self._decompose_integer(other), self)
 
+        if type(other) is list:
+            return PAdicIntegerElement(other, self)
+
         raise CoercionException(self, other)
 
 

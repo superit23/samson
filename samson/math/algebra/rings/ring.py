@@ -238,7 +238,7 @@ class Ring(BaseObject):
         try:
             self.coerce(element)
             return True
-        except CoercionException:
+        except (CoercionException, AttributeError):
             return False
 
 
@@ -491,7 +491,7 @@ class RingElement(BaseObject):
             return self.__elemmul__(self.ring.coerce(other))
         except Exception as e:
             gmul = self.ground_mul(other)
-            if not gmul:
+            if gmul is None:
                 raise e
             
             return gmul

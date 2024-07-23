@@ -140,7 +140,7 @@ class NTRU(NumberTheoreticalAlg):
     EPHEMERAL       = EphemeralSpec(ephemeral_type=EphemeralType.KEY, size=SizeSpec(size_type=SizeType.DEPENDENT, selector=lambda ntru: ntru.N))
     USAGE_FREQUENCY = FrequencyType.UNUSUAL
 
-    def __init__(self, N: int, p: int=3, q: int=128, f_poly: Polynomial=None, g_poly: Polynomial=None):
+    def __init__(self, N: int, p: int=3, q: int=128, f_poly: Polynomial=None, g_poly: Polynomial=None, h_poly: Polynomial=None):
         """
         Parameters:
             N             (int): Polynomial degree/modulus.
@@ -148,6 +148,7 @@ class NTRU(NumberTheoreticalAlg):
             q             (int): Large modulus.
             f_poly (Polynomial): F-polynomial of private key.
             g_poly (Polynomial): G-polynomial of private key.
+            h_poly (Polynomial): Public key polynomial.
         """
         Primitive.__init__(self)
         self.N = N
@@ -157,7 +158,7 @@ class NTRU(NumberTheoreticalAlg):
 
         self.f_poly = f_poly
         self.g_poly = g_poly
-        self.h_poly = None
+        self.h_poly = h_poly
 
         priv_not_specified = [poly is None for poly in [f_poly, g_poly]]
 
@@ -166,13 +167,15 @@ class NTRU(NumberTheoreticalAlg):
             self.generate_random_keys()
 
         # Tried to specify only part of private key
-        elif any(priv_not_specified):
+        elif any(priv_not_specified) and not h_poly:
             raise ValueError("Must provide ALL values for private key: f_poly, g_poly")
 
         # Specified private key, but not public key
-        else:
+        elif not h_poly:
             self.generate_public_key()
-
+        
+        else:
+            self._find_intermediate_polys()
 
 
 
@@ -192,13 +195,17 @@ class NTRU(NumberTheoreticalAlg):
                 pass
 
 
+    def _find_intermediate_polys(self):
+        self.f_p_poly = invert_poly(self.f_poly, self.R_poly, self.p)
+        self.f_q_poly = invert_poly(self.f_poly, self.R_poly, self.q)
+
+
 
     def generate_public_key(self):
         """
         Attempts to find the public key for the current private key. May throw `NotInvertibleException`.
         """
-        self.f_p_poly = invert_poly(self.f_poly, self.R_poly, self.p)
-        self.f_q_poly = invert_poly(self.f_poly, self.R_poly, self.q)
+        self._find_intermediate_polys()
 
         p_f_q_poly  = (self.p * self.f_q_poly).trunc(self.q)
         pfq_trunc   = (p_f_q_poly * self.g_poly).trunc(self.q)

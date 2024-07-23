@@ -1284,7 +1284,7 @@ def lll(in_basis: 'Matrix', delta: float=0.75) -> 'Matrix':
 
 
     # Prepare parameters
-    delta = QQ(delta)
+    delta = R(delta)
     d_num = int(delta.numerator)
     d_den = int(delta.denominator)
     half  = R((R.ring.one, R.ring.one*2))

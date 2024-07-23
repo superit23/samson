@@ -25,7 +25,7 @@ class NegativeDegreeElement(RingElement):
 
 
     def truncate(self, precision: int) -> 'NegativeDegreeElement':
-        return self.ring.ELEMENT(self.val[:precision+self.shift], self.shift, self.ring)
+        return self.ring.ELEMENT(self.ring.ring(self.val[:precision+self.shift]), self.shift, self.ring)
 
 
     def order(self) -> int:
