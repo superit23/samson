@@ -1814,7 +1814,9 @@ class Polynomial(RingElement):
 
 
     def __eq__(self, other: 'Polynomial') -> bool:
-        return type(self) == type(other) and self.coeff_ring == other.coeff_ring and self.coeffs == other.coeffs
+        if type(other) is not type(self) and other in self.ring:
+            other = self.ring(other)
+        return self.coeff_ring == other.coeff_ring and self.coeffs == other.coeffs
 
 
     def __elemlt__(self, other: 'Polynomial') -> bool:

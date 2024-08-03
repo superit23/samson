@@ -947,9 +947,14 @@ class WeierstrassCurve(Ring):
                         P  = self.random()
                         PC = P.cache_mul(p.bit_length())
 
+
+                    # Handle curves over very small fields
+                    if p+start < 0:
+                        start = -p
+
                     for i in range(start, end):
                         if not PC*(p+i):
-                            return p+i
+                            order = p+i
 
 
                 else:
