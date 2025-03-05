@@ -19,6 +19,15 @@ class KeyDescription(BaseObject):
     def __init__(self, key_format: KMKeyFormat, key_params: AuthorizationList) -> None:
         self.key_format = key_format
         self.key_params = key_params
+    
+
+    @staticmethod
+    def parse(key_desc: KeyDescriptionASN1):
+        key_format = KMKeyFormat(int(key_desc['keyFormat']))
+        return KeyDescription(
+            key_format=key_format,
+            key_params=AuthorizationList.parse(key_format, key_desc['keyParams'])
+        )
 
 
     def build(self):
