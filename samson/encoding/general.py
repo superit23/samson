@@ -290,6 +290,7 @@ class PKIEncoding(Enum):
     JWK          = 8
     DNS_KEY      = 9
     X509_CSR     = 10
+    ANDROID_KW   = 11
 
 
 

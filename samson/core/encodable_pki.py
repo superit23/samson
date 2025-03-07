@@ -1,7 +1,7 @@
 from samson.encoding.general import PKIEncoding
 from samson.encoding.pem import pem_decode
 
-ORDER = [PKIEncoding.DNS_KEY, PKIEncoding.JWK, PKIEncoding.OpenSSH, PKIEncoding.SSH2, PKIEncoding.OpenSSH_CERT, PKIEncoding.X509_CSR, PKIEncoding.X509_CERT, PKIEncoding.X509, PKIEncoding.PKCS8, PKIEncoding.PKCS1]
+ORDER = [PKIEncoding.ANDROID_KW, PKIEncoding.DNS_KEY, PKIEncoding.JWK, PKIEncoding.OpenSSH, PKIEncoding.SSH2, PKIEncoding.OpenSSH_CERT, PKIEncoding.X509_CSR, PKIEncoding.X509_CERT, PKIEncoding.X509, PKIEncoding.PKCS8, PKIEncoding.PKCS1]
 
 class EncodablePKI(object):
     PUB_ENCODINGS  = {}
@@ -48,11 +48,11 @@ class EncodablePKI(object):
         if encoding not in self.PUB_ENCODINGS:
             raise ValueError(f'Unsupported public encoding "{encoding}" for "{self.__class__}"')
 
-        return self.PUB_ENCODINGS[encoding](self, **kwargs)
+        return self.PUB_ENCODINGS[encoding].create(self, **kwargs)
 
 
 
-    def export_private_key(self, encoding: PKIEncoding=PKIEncoding.PKCS8, encode_pem: bool=True, marker: str=None, encryption: str=None, passphrase: bytes=None, iv: bytes=None, **kwargs) -> bytes:
+    def export_private_key(self, encoding: PKIEncoding=PKIEncoding.PKCS8, **kwargs) -> bytes:
         """
         Exports the full PKI instance into encoded bytes.
 
@@ -70,4 +70,4 @@ class EncodablePKI(object):
         if encoding not in self.PRIV_ENCODINGS:
             raise ValueError(f'Unsupported private encoding "{encoding}" for "{self.__class__}"')
 
-        return self.PRIV_ENCODINGS[encoding](self, **kwargs)
+        return self.PRIV_ENCODINGS[encoding].create(self, **kwargs)

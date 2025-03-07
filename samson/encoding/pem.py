@@ -178,8 +178,8 @@ def pem_encode(der_bytes: bytes, marker: str, width: int=70, encryption: str=Non
     return f"{begin_delim}BEGIN {marker}{end_delim}\n{additional_headers}".encode('utf-8') + data + f"\n{begin_delim}END {marker}{end_delim}".encode('utf-8')
 
 
-from samson.core.base_object import BaseObject
-class PEMEncodable(BaseObject):
+from samson.core.pki_parser_base import PKIParserBase
+class PEMEncodable(PKIParserBase):
     DOC_PARAMS = """            buffer     (bytes): Buffer to encode.
             encode_pem  (bool): Whether or not to PEM-encode as well.
             marker       (str): Marker to use in PEM formatting (if applicable).

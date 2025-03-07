@@ -45,7 +45,7 @@ class PKCS8ECDSAPrivateKey(PKCS8Base):
 
 
     @staticmethod
-    def decode(buffer: bytes, **kwargs) -> 'ECDSA':
+    def decode(buffer: bytes, **kwargs) -> 'PKCS8ECDSAPrivateKey':
         items = bytes_to_der_sequence(buffer)
 
         params, _ = decoder.decode(bytes(items[2]))

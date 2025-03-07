@@ -1,9 +1,9 @@
-from samson.core.base_object import BaseObject
+from samson.core.pki_parser_base import PKIParserBase
 from samson.encoding.openssh.general import generate_openssh_private_key, parse_openssh_key
 from samson.encoding.openssh.core import PrivateKeyContainer, OpenSSHPrivateHeader
 from samson.utilities.bytes import Bytes
 
-class OpenSSHBase(BaseObject):
+class OpenSSHBase(PKIParserBase):
     DEFAULT_MARKER = 'OPENSSH PRIVATE KEY'
     DEFAULT_PEM    = True
 

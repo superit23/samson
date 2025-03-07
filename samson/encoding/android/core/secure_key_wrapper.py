@@ -1,5 +1,5 @@
-from samson.encoding.android.key_description import KeyDescriptionASN1, KeyDescription
-from samson.encoding.android.transformations import Transformation
+from samson.encoding.android.core.key_description import KeyDescriptionASN1, KeyDescription
+from samson.encoding.general import PKIAutoParser
 from samson.block_ciphers.rijndael import Rijndael
 from samson.block_ciphers.modes.gcm import GCM
 from samson.utilities.bytes import Bytes
@@ -39,7 +39,7 @@ class SecureKeyWrapper(BaseObject):
 
 
     @staticmethod
-    def create(key_material: bytes, transformation: Transformation, key_description: KeyDescription, ephemeral_key: bytes=None, iv: bytes=None):
+    def create(key_material: bytes, transformation: 'Transformation', key_description: KeyDescription, ephemeral_key: bytes=None, iv: bytes=None):
         eph_key     = ephemeral_key or Bytes.random(32)
         enc_eph_key = transformation.transform(eph_key)
 
@@ -57,6 +57,13 @@ class SecureKeyWrapper(BaseObject):
             encrypted_key=enc_sec_key,
             tag=tag
         )
+    
+
+    def decrypt_key(self, transformation: 'Transformation'):
+        eph_key      = transformation.decrypt(self.encrypted_transport_key)
+        gcm          = GCM(Rijndael(eph_key))
+        imported_key = gcm.decrypt(nonce=self.iv, data=encoder.encode(self.key_description.build()), authed_ciphertext=self.encrypted_key + self.tag)
+        return PKIAutoParser.import_key(imported_key)
 
 
     @staticmethod
@@ -77,7 +84,6 @@ class SecureKeyWrapper(BaseObject):
             encrypted_key=enc_sec_key,
             tag=tag
         )
-
 
 
     def build(self) -> 'SecureKeyWrapper':

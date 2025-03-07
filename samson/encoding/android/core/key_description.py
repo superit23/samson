@@ -1,7 +1,7 @@
 from pyasn1.type.univ import Sequence, Integer
 from pyasn1.type.namedtype import NamedTypes, NamedType
-from samson.encoding.android.keymaster_def import KMKeyFormat
-from samson.encoding.android.symmetric_authorization_list import AuthorizationList
+from samson.encoding.android.core.keymaster_def import KMKeyFormat
+from samson.encoding.android.core.authorization_list import AuthorizationList
 from samson.core.base_object import BaseObject
 
 class KeyDescriptionASN1(Sequence):
@@ -26,7 +26,7 @@ class KeyDescription(BaseObject):
         key_format = KMKeyFormat(int(key_desc['keyFormat']))
         return KeyDescription(
             key_format=key_format,
-            key_params=AuthorizationList.parse(key_format, key_desc['keyParams'])
+            key_params=AuthorizationList.parse(key_desc['keyParams'])
         )
 
 

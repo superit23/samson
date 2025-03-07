@@ -1,24 +1,7 @@
-from samson.encoding.android.keymaster_def import KMAlgorithm, KMPurpose, KMBlockMode, KMPadding, KMTag, KMKeyFormat, KMECCurve, KMDigest, KMOrigin, remove_tag_type
+from samson.encoding.android.core.keymaster_def import KMAlgorithm, KMPurpose, KMBlockMode, KMPadding, KMTag, KMKeyFormat, KMECCurve, KMDigest, KMOrigin, remove_tag_type
 from samson.core.base_object import BaseObject
 from pyasn1.type.univ import  Integer, Set, Null, OctetString
 from pyasn1.type import tag
-
-# https://android.googlesource.com/platform/cts/+/master/tests/security/src/android/keystore/cts/AuthorizationList.java
-class AuthorizationList(BaseObject):
-    KEY_FORMAT = None
-
-    @classmethod
-    def parse(cls, key_format: KMKeyFormat, sequence):
-        for subclass in cls.__subclasses__():
-            if subclass.KEY_FORMAT == key_format:
-                return subclass.parse(sequence)
-        
-        raise ValueError(f'No registered subclass for {key_format}')
-
-
-    def build(self):
-        pass
-
 
 class Authorization(BaseObject):
     TAG = None
@@ -96,7 +79,7 @@ class SetAuthorization(Authorization):
 
     @classmethod
     def _parse(cls, item: object) -> 'SetAuthorization':
-        return cls([cls.TYPE(int(item[i])) for i in item])
+        return cls([cls.TYPE(int(i)) for i in item])
 
 
     def build(self):
