@@ -89,13 +89,17 @@ class AndroidKeyWrapRSAPrivateKey(AndroidKeyWrapPrivateKey):
             KMPurpose.KM_PURPOSE_ENCRYPT,
             KMPurpose.KM_PURPOSE_DECRYPT,
             KMPurpose.KM_PURPOSE_SIGN,
-            KMPurpose.KM_PURPOSE_VERIFY
+            KMPurpose.KM_PURPOSE_VERIFY,
+            KMPurpose.KM_PURPOSE_WRAP
         ]),
         (KMTag.KM_TAG_PADDING, [
             KMPadding.KM_PAD_RSA_OAEP,
             KMPadding.KM_PAD_RSA_PKCS1_1_5_ENCRYPT,
             KMPadding.KM_PAD_RSA_PKCS1_1_5_SIGN,
             KMPadding.KM_PAD_RSA_PSS
+        ]),
+        (KMTag.KM_TAG_DIGEST, [
+            KMDigest.KM_DIGEST_SHA_2_256
         ])
     ]
 
