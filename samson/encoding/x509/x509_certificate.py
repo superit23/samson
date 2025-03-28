@@ -223,8 +223,6 @@ class X509Certificate(PEMEncodable):
         not_before = parse_time(validity['notBefore'])
         not_after  = parse_time(validity['notAfter'])
 
-
-        #is_ca = False
         extensions = []
         if 'extensions' in tbs_cert:
             for ext in tbs_cert['extensions']:

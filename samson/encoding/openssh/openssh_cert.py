@@ -1,4 +1,4 @@
-from samson.core.base_object import BaseObject
+from samson.core.pki_parser_base import PKIParserBase
 from samson.encoding.general import PKIEncoding, PKIAutoParser, EncodingScheme
 from samson.encoding.openssh.core import *
 from samson.utilities.bytes import Bytes
@@ -20,7 +20,7 @@ SIG_CLS_LOOKUP = {
 }
 
 
-class OpenSSHCertificate(BaseObject):
+class OpenSSHCertificate(PKIParserBase):
     ENCODING = PKIEncoding.OpenSSH_CERT
     HEADER   = None
     KEY_CLS  = SSHSignature

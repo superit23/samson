@@ -38,7 +38,7 @@ class PKCS8DSAPrivateKey(PKCS8Base):
 
 
     @staticmethod
-    def decode(buffer: bytes, **kwargs) -> 'DSA':
+    def decode(buffer: bytes, **kwargs) -> 'PKCS8DSAPrivateKey':
         from samson.public_key.dsa import DSA
         items = bytes_to_der_sequence(buffer)
 

@@ -36,7 +36,7 @@ class PKCS8EdDSAPrivateKey(PKCS8Base):
 
 
     @staticmethod
-    def decode(buffer: bytes, **kwargs) -> 'EdDSA':
+    def decode(buffer: bytes, **kwargs) -> 'PKCS8EdDSAPrivateKey':
         from samson.public_key.eddsa import EdDSA
         items = bytes_to_der_sequence(buffer)
 

@@ -1,9 +1,9 @@
-from samson.core.base_object import BaseObject
+from samson.core.pki_parser_base import PKIParserBase
 
-class JWKBase(BaseObject):
+class JWKBase(PKIParserBase):
     DEFAULT_MARKER = None
-    DEFAULT_PEM = False
-    USE_RFC_4716 = False
+    DEFAULT_PEM    = False
+    USE_RFC_4716   = False
 
     def __init__(self, key, **kwargs):
         self.key = key

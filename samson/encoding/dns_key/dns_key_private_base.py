@@ -1,12 +1,12 @@
 from samson.encoding.dns_key.general import DNSKeyAlgorithm
 from samson.encoding.general import EncodingScheme
-from samson.core.base_object import BaseObject
+from samson.core.pki_parser_base import PKIParserBase
 from samson.utilities.bytes import Bytes
 from datetime import datetime
 
 _TIME_FORMAT = '%Y%m%d%H%M%S'
 
-class DNSKeyPrivateBase(BaseObject):
+class DNSKeyPrivateBase(PKIParserBase):
 
     def __init__(self, key: object, algorithm: DNSKeyAlgorithm=None, version: str='1.3', created: datetime=None, publish: datetime=None, activate: datetime=None, **kwargs):
         self.key   = key

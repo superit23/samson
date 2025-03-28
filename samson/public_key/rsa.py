@@ -10,6 +10,8 @@ from samson.encoding.pkcs1.pkcs1_rsa_public_key import PKCS1RSAPublicKey
 from samson.encoding.x509.x509_rsa_certificate import X509RSACertificate, X509RSASigningAlgorithms, X509RSACertificateSigningRequest, X509RSAParams
 from samson.encoding.x509.x509_rsa_public_key import X509RSAPublicKey
 from samson.encoding.dns_key.dns_key_rsa_key import DNSKeyRSAPublicKey, DNSKeyRSAPrivateKey
+from samson.encoding.android.android_keywrap_private_key import AndroidKeyWrapRSAPrivateKey
+from samson.encoding.android.core.transformations import RSA_OAEP_ECB
 from samson.encoding.general import PKIEncoding
 
 from samson.utilities.exceptions import NoSolutionException
@@ -35,7 +37,8 @@ class RSA(NumberTheoreticalAlg, EncodablePKI):
         PKIEncoding.OpenSSH: OpenSSHRSAPrivateKey,
         PKIEncoding.PKCS1: PKCS1RSAPrivateKey,
         PKIEncoding.PKCS8: PKCS8RSAPrivateKey,
-        PKIEncoding.DNS_KEY: DNSKeyRSAPrivateKey
+        PKIEncoding.DNS_KEY: DNSKeyRSAPrivateKey,
+        PKIEncoding.ANDROID_KW: AndroidKeyWrapRSAPrivateKey
     }
 
 
@@ -54,6 +57,8 @@ class RSA(NumberTheoreticalAlg, EncodablePKI):
     X509_SIGNING_ALGORITHMS = X509RSASigningAlgorithms
     X509_SIGNING_DEFAULT    = X509RSASigningAlgorithms.sha256WithRSAEncryption
     X509_SIGNING_PARAMS     = X509RSAParams
+
+    ANDROID_KW_DEFAULT_TRANSFORMATION = RSA_OAEP_ECB
 
     SECURITY_PROOF  = SecurityProofType.INTEGER_FACTORIZATION
     USAGE_FREQUENCY = FrequencyType.PROLIFIC

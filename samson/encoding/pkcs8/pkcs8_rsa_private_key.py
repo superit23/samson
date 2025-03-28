@@ -33,6 +33,6 @@ class PKCS8RSAPrivateKey(PKCS8Base):
 
 
     @staticmethod
-    def decode(buffer: bytes, **kwargs) -> 'RSA':
+    def decode(buffer: bytes, **kwargs) -> 'PKCS8RSAPrivateKey':
         items = bytes_to_der_sequence(buffer)
         return PKCS8RSAPrivateKey(PKCS1RSAPrivateKey.decode(bytes(items[2])).key)

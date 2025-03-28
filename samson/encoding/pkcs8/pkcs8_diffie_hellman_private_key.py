@@ -37,7 +37,7 @@ class PKCS8DiffieHellmanPrivateKey(PKCS8Base):
 
 
     @staticmethod
-    def decode(buffer: bytes, **kwargs) -> 'DiffieHellman':
+    def decode(buffer: bytes, **kwargs) -> 'PKCS8DiffieHellmanPrivateKey':
         from samson.protocols.diffie_hellman import DiffieHellman
         items = bytes_to_der_sequence(buffer)
 

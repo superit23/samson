@@ -1,12 +1,12 @@
 from samson.encoding.general import EncodingScheme
 from samson.encoding.dns_key.general import DNSKeyAlgorithm, DNSKeyFlags
-from samson.core.base_object import BaseObject
+from samson.core.pki_parser_base import PKIParserBase
 from samson.utilities.bytes import Bytes
 import re
 
 METADATA_RE = re.compile(b'[0-9]{1,3} 3 [0-9]{1,2}')
 
-class DNSKeyPublicBase(BaseObject):
+class DNSKeyPublicBase(PKIParserBase):
 
     def __init__(self, key: object, alg: DNSKeyAlgorithm=None, proto: int=3, flags: DNSKeyFlags=DNSKeyFlags.ZONE_KEY, **kwargs):
         self.key   = key
