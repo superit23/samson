@@ -39,7 +39,7 @@ class X509RSAPublicKey(X509PublicKeyBase):
 
         if type(items[1]) is BitString:
             if str(items[0][0]) == '1.2.840.113549.1.1.1':
-                bitstring_seq = decoder.decode(Bytes(int(items[1])))[0]
+                bitstring_seq = decoder.decode(bytes(Bytes(int(items[1]))))[0]
                 items = list(bitstring_seq)
             else:
                 raise ValueError('Unable to decode RSA key.')

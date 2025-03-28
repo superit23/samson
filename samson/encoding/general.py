@@ -243,7 +243,7 @@ def bytes_to_der_sequence(buffer: bytes, passphrase: bytes=None) -> _Sequence:
         if 'passphrase not specified' in str(e):
             raise e
 
-    seq = decoder.decode(buffer)
+    seq = decoder.decode(bytes(buffer))
     items = seq[0]
 
     return items
@@ -309,6 +309,13 @@ class PKIAutoParser(object):
         if buffer.strip().startswith(b'----'):
             buffer = pem_decode(buffer, passphrase)
 
+
+        # Check if it's Base64
+        buffer = EncodingScheme.get_valid_decodings(buffer).get(EncodingScheme.BASE64, buffer)
+
+        # Do this because not every checker likes samson Bytes
+        buffer = bytes(buffer)
+
         for encoding in ORDER:
             for subclass in subclasses:
                 for encoding_type in [subclass.PRIV_ENCODINGS, subclass.PUB_ENCODINGS]:
@@ -327,6 +334,9 @@ class PKIAutoParser(object):
 
         if buffer.strip().startswith(b'----'):
             buffer = pem_decode(buffer, passphrase)
+
+
+        buffer = EncodingScheme.get_valid_decodings(buffer).get(EncodingScheme.BASE64, buffer)
 
         return PKIAutoParser.get_encoding(buffer, passphrase=passphrase).decode(buffer, passphrase=passphrase)
     

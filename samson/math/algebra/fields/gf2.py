@@ -1,6 +1,6 @@
 from samson.math.algebra.fields.finite_field import FiniteField, FiniteFieldElement
 from samson.math.algebra.fields.field import FieldElement
-from samson.math.general import random_int, int_to_poly, poly_to_int
+from samson.math.general import random_int, int_to_poly, poly_to_int, totient
 
 class GF2Element(FiniteFieldElement):
     """
@@ -72,7 +72,7 @@ class GF2Element(FiniteFieldElement):
 
 
     def __invert__(self) -> 'GF2Element':
-        return self**(self.field.p**self.field.n-2)
+        return self**(totient(2**self.field.n)-2)
 
 
     def __neg__(self) -> 'GF2Element':
