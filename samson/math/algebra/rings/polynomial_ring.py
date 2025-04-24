@@ -349,6 +349,33 @@ class PolynomialRing(Ring):
         return self(result[::-1])
 
 
+    def polynomial_regression(self, points: 'List[Tuple]', max_degree: int) -> 'Polynomial':
+        """
+        Generates a best-fit polynomial of `max_degree` for given `points`.
+
+        Parameters:
+            points (List[Tuple]): (`x`,`y`) points with both `x` and `y` coercible to the base ring.
+            max_degree     (int): Maximum degree of the output polynomial.
+
+        Returns:
+            Polynomial: Best-fit polynomial.
+
+        References:
+            https://en.wikipedia.org/wiki/Polynomial_regression
+        """
+        from samson.math.matrix import Matrix
+
+        m     = max_degree+1
+        R     = self.ring
+        e_vec = [sum([R(p[0]**j) for p in points]) for j in range(m*2)]
+        M     = Matrix([[e_vec[i+j] for i in range(m)] for j in range(m)])
+        y_vec = Matrix([[sum([R(x**j)*R(y) for x,y in points]) for j in range(m)]])
+
+        B_vec = M.solve_right(y_vec.T).T
+
+        return self(list(B_vec[0]))
+
+
 
     def binomial(self, n: int, y: 'RingElement'=None, d: int=1) -> 'Polynomial':
         """
