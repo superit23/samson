@@ -291,7 +291,10 @@ class RealField(Field):
 
 
         try:
-            other = float(other)
+            if type(other) is not type(self.ctx.one):
+                other = float(other)
+            return RealElement(self.ctx.mpf(other), self)
+        except OverflowError:
             return RealElement(self.ctx.mpf(other), self)
         except (ValueError, TypeError) as e:
             raise CoercionException(other) from e

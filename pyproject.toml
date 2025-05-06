@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "samson-crypto"
+dynamic = ["version"]
+description = "Cryptanalysis and attack library"
+readme = {file = "README.md", content-type = "text/markdown"}
+
+authors = [
+    { name = "Dani Cronce" },
+]
+keywords = [
+    "cryptanalysis",
+    "cryptography",
+    "security",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Security",
+    "Topic :: Security :: Cryptography",
+]
+dependencies = [
+    "dill",
+    "ipython",
+    "jedi",
+    "mpmath",
+    "pyasn1-modules>=0.2.8",
+    "pyasn1>=0.4.8",
+    "rich",
+    "sortedcontainers",
+    "tqdm",
+    "z3-solver"
+]
+
+
+
+[project.urls]
+Homepage = "https://github.com/superit23/samson"
+
+
+[project.optional-dependencies]
+tests_require = [
+    'pytest'
+]
+
+distributed_requires = [
+    "celery"
+]
+
+
+[project.scripts]
+samson = "samson.utilities.cli:start_repl"
+
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["samson/"]
+
+
+[tool.hatch.version]
+path = "samson/__init__.py"
+
+[tool.hatch.build.targets.wheel.shared-data]
+"man/artifacts" = "man/man1"
+"scripts/samson-autocomplete.sh" = "/etc/bash_completion.d/samson-autocomplete.sh"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/samson",
+]

@@ -59,7 +59,7 @@ def start_repl(additional_exec: list=None):
 
     banner = f"""
 {apply_logo_theme(logo_theme)}
-    v{VERSION} -- https://github.com/wildcardcorp/samson
+    v{VERSION} -- https://github.com/superit23/samson
 
 Python {sys.version}
 IPython {IPython.__version__}
