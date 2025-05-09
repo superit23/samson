@@ -75,3 +75,8 @@ path = "samson/__init__.py"
 include = [
     "/samson",
 ]
+
+
+[tool.hatch.envs.default]
+type = "virtual"
+python = "pypy3.10"

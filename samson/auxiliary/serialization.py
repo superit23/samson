@@ -143,9 +143,7 @@ class SizedSerializable(BaseObject):
 
 
         # Generate a signature
-        sig = reconstruct({k:getattr(self.__class__, k, None) for k in self.__annotations__.keys()})
-        bound = sig.bind(*args, **kwargs)
-        bound.apply_defaults()
+        bound = self.bind_signature(*args, **kwargs)
 
         # Line up and process *args
         for (k, t), v in zip(self.__annotations__.items(), bound.args):
@@ -157,6 +155,12 @@ class SizedSerializable(BaseObject):
             t = self.__annotations__[k]
             process(k, v, t)
 
+
+    def bind_signature(self, *args, **kwargs):
+        sig   = reconstruct({k:getattr(self.__class__, k, None) for k in self.__annotations__.keys()})
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+        return bound
 
 
 
@@ -265,8 +269,11 @@ class SizedSerializable(BaseObject):
             sd = deepcopy(s.__dict__)
             od = deepcopy(o.__dict__)
 
-            del sd['parent']
-            del od['parent']
+            if 'parent' in sd:
+                del sd['parent']
+            
+            if 'parent' in od:
+                del od['parent']
 
             if sd == od:
                 return True
@@ -398,7 +405,8 @@ class SizedSerializable(BaseObject):
 
             @classmethod
             def _deserialize(cls, data, state=None):
-                return cls.SELECTOR(cls, state)._deserialize(data)
+                left_over, result = cls.SELECTOR(cls, state)._deserialize(data)
+                return left_over, cls(result)
 
 
         cls.Selector = Selector
@@ -738,13 +746,14 @@ class SizedSerializable(BaseObject):
             def _deserialize(cls, data, state=None):
                 left_over, i8 = cls.SUBTYPE.deserialize(data)
                 return left_over, cls(i8.native())
-        
+
+
         cls.TypedEnum = TypedEnum
 
 
         class Enum(Subtypable):
             TYPED_CLS = TypedEnum
-        
+
 
         cls.Enum = Enum
 
@@ -790,6 +799,7 @@ class SizedSerializable(BaseObject):
 
         class Opaque(cls, metaclass=SubtypedValueMeta):
             SUBTYPE = None
+            val: object
 
             def serialize(self):
                 return Bytes(self.val.serialize()).serialize()
@@ -798,7 +808,7 @@ class SizedSerializable(BaseObject):
             @classmethod
             def _deserialize(cls, data, state=None):
                 data, obj = Bytes._deserialize(data)
-                return data, cls.SUBTYPE.from_bytes(obj, state)
+                return data, cls(cls.SUBTYPE.from_bytes(obj, state))
             
 
             def native(self):
