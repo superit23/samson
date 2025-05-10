@@ -16,54 +16,6 @@ def S3_make_tls_list(type):
 
 
 
-########################################
-# B.3.1.4.  Supported Groups Extension #
-########################################
-
-# enum {
-
-#     /* Elliptic Curve Groups (ECDHE) */
-#     secp256r1(0x0017), secp384r1(0x0018), secp521r1(0x0019),
-#     x25519(0x001D), x448(0x001E),
-
-#     /* Finite Field Groups (DHE) */
-#     ffdhe2048(0x0100), ffdhe3072(0x0101), ffdhe4096(0x0102),
-#     ffdhe6144(0x0103), ffdhe8192(0x0104),
-
-#     /* Reserved Code Points */
-#     ffdhe_private_use(0x01FC..0x01FF),
-#     ecdhe_private_use(0xFE00..0xFEFF),
-#     (0xFFFF)
-# } NamedGroup;
-
-# struct {
-#     NamedGroup named_group_list<2..2^16-1>;
-# } NamedGroupList;
-
-class NamedGroup(S2.Enum[S2.UInt16]):
-    # Elliptic Curve Groups  = ECDHE
-    secp256r1 = 0x0017
-    secp384r1 = 0x0018
-    secp521r1 = 0x0019
-    x25519 = 0x001D
-    x448 = 0x001E
-
-    # Finite Field Groups  = DHE
-    ffdhe2048 = 0x0100
-    ffdhe3072 = 0x0101
-    ffdhe4096 = 0x0102
-    ffdhe6144 = 0x0103
-    ffdhe8192 = 0x0104
-
-    # Reserved Code Points
-    ffdhe_private_use = 0x01FC
-    ecdhe_private_use = 0xFE00
-
-
-class NamedGroupList(S2):
-    named_group_list: S2_make_tls_list(NamedGroup)
-
-
 
 
 #########################
@@ -100,6 +52,10 @@ class NamedGroupList(S2):
 #     opaque encrypted_record[TLSCiphertext.length];
 # } TLSCiphertext;
 
+class ProtocolVersion(S2.Enum[S2.UInt16]):
+    TLSv12 = 0x0303
+    TLSv13 = 0x0304
+
 
 class ContentType(S2.Enum[S2.UInt8]):
     invalid = 0
@@ -112,7 +68,7 @@ class ContentType(S2.Enum[S2.UInt8]):
 
 class TLSPlaintext(S2):
     type: ContentType
-    legacy_record_version: S2.UInt16
+    legacy_record_version: ProtocolVersion
     fragment: S2.Bytes
 
 
@@ -124,7 +80,7 @@ class TLSInnerPlaintext(S2):
 
 class TLSCiphertext(S2):
     opaque_type: ContentType
-    legacy_record_version: S2.UInt16=0x0303
+    legacy_record_version: ProtocolVersion
     encrypted_record: S2.Bytes
 
 
@@ -348,16 +304,79 @@ class ExtensionType(S2.Enum[S2.UInt16]):
     renegotiation_info = 65281
 
 
+
+EXT_LUT = {}
+
+def register_extension(ext_type):
+    def _wrapper(ext):
+        EXT_LUT[ext_type] = S2.Opaque[ext]
+        return ext
+
+    return _wrapper
+
+
 def ext_selector(cls, state):
-    if state['extension_type'] == ExtensionType.supported_versions:
-        return S2.Opaque[SupportedVersionsClient]
-    
-    return S2.Bytes
+    return EXT_LUT.get(state['extension_type'], S2.Bytes)
 
 
 class Extension(S2):
     extension_type: ExtensionType
     extension_data: S2.Selector[ext_selector]
+
+
+
+########################################
+# B.3.1.4.  Supported Groups Extension #
+########################################
+
+# enum {
+
+#     /* Elliptic Curve Groups (ECDHE) */
+#     secp256r1(0x0017), secp384r1(0x0018), secp521r1(0x0019),
+#     x25519(0x001D), x448(0x001E),
+
+#     /* Finite Field Groups (DHE) */
+#     ffdhe2048(0x0100), ffdhe3072(0x0101), ffdhe4096(0x0102),
+#     ffdhe6144(0x0103), ffdhe8192(0x0104),
+
+#     /* Reserved Code Points */
+#     ffdhe_private_use(0x01FC..0x01FF),
+#     ecdhe_private_use(0xFE00..0xFEFF),
+#     (0xFFFF)
+# } NamedGroup;
+
+# struct {
+#     NamedGroup named_group_list<2..2^16-1>;
+# } NamedGroupList;
+
+class NamedGroup(S2.Enum[S2.UInt16]):
+    # Elliptic Curve Groups  = ECDHE
+    secp256r1 = 0x0017
+    secp384r1 = 0x0018
+    secp521r1 = 0x0019
+    x25519 = 0x001D
+    x448 = 0x001E
+
+    # Finite Field Groups  = DHE
+    ffdhe2048 = 0x0100
+    ffdhe3072 = 0x0101
+    ffdhe4096 = 0x0102
+    ffdhe6144 = 0x0103
+    ffdhe8192 = 0x0104
+
+    X25519MLKEM768 = 0x11EC # https://datatracker.ietf.org/doc/draft-ietf-tls-ecdhe-mlkem/
+
+    # Reserved Code Points
+    ffdhe_private_use = 0x01FC
+    ecdhe_private_use = 0xFE00
+
+
+@register_extension(ExtensionType.supported_groups)
+class NamedGroupList(S2):
+    named_group_list: S2_make_tls_list(NamedGroup)
+
+
+
 
 
 
@@ -382,7 +401,7 @@ class Extension(S2):
 #     b: S1.UInt8
 
 class ClientHello(S1):
-    legacy_version: S1.UInt16=0x0303
+    legacy_version: ProtocolVersion
     random: S1.Bytes[32]
     legacy_session_id: S1.Bytes
     cipher_suites: S2_make_tls_list(S1.UInt16)
@@ -400,7 +419,7 @@ class ClientHello(S1):
 # } ServerHello;
 
 class ServerHello(S1):
-    legacy_version: S1.UInt16=0x0303
+    legacy_version: ProtocolVersion
     random: S1.Bytes[32]
     legacy_session_id_echo: S1.Opaque[S1.Bytes]
     cipher_suite: S2.UInt16
@@ -543,11 +562,12 @@ class PreSharedKeyExtensionServer(S2):
 #     };
 # } SupportedVersions;
 
+@register_extension(ExtensionType.supported_versions)
 class SupportedVersionsClient(S1):
-    versions: S1_make_tls_list(S1.UInt16)
+    versions: S1_make_tls_list(ProtocolVersion)
 
 class SupportedVersionsServer(S1):
-    selected_version: S1.UInt16
+    selected_version: ProtocolVersion
 
 
 ##############################
@@ -864,8 +884,6 @@ class TLSCipherSuites(S2.Enum[S1.UInt16]):
     TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 = 0xc02c
     TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 = 0x0c2f
     TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 = 0xc030
-    TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 = 0x009e
-    TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 = 0x009f
     TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 = 0xcca8
     TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 = 0xcca9
     TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256 = 0xccaa
@@ -891,3 +909,289 @@ class TLSCipherSuites(S2.Enum[S1.UInt16]):
     TLS_CHACHA20_POLY1305_SHA256 = 0x1303
     TLS_AES_128_CCM_SHA256 = 0x1304
     TLS_AES_128_CCM_8_SHA256 = 0x1305
+
+
+#############################################################
+#                         RFC6066                           #
+# https://www.rfc-editor.org/rfc/inline-errata/rfc6066.html #
+#############################################################
+
+# struct {
+#     NameType name_type;
+#     select (name_type) {
+#         case host_name: HostName;
+#     } name;
+# } ServerName;
+
+# enum {
+#     host_name(0), (255)
+# } NameType;
+
+# opaque HostName<1..2^16-1>;
+
+# struct {
+#     ServerName server_name_list<1..2^16-1>
+# } ServerNameList;
+
+class NameType(S2.Enum[S2.UInt8]):
+    host_name = 0
+
+
+class ServerName(S2):
+    name_type: NameType
+    name: S2.Opaque[S2.Bytes]
+
+
+@register_extension(ExtensionType.server_name)
+class ServerNameList(S2):
+    server_name_list: S2_make_tls_list(ServerName)
+
+
+# enum{
+#     2^9(1), 2^10(2), 2^11(3), 2^12(4), (255)
+# } MaxFragmentLength;
+
+
+@register_extension(ExtensionType.max_fragment_length)
+class MaxFragmentLength(S2.Enum[S2.UInt8]):
+    TWO_TO_NINETH  = 1
+    TWO_TO_TENTH = 2
+    TWO_TO_ELEVENTH = 3
+    TWO_TO_TWELFTH = 4
+
+
+
+# enum {
+#     individual_certs(0), pkipath(1), (255)
+# } CertChainType;
+
+# struct {
+#     CertChainType type;
+#     URLAndHash url_and_hash_list<1..2^16-1>;
+# } CertificateURL;
+
+# struct {
+#     opaque url<1..2^16-1>;
+#     unint8 padding;
+#     opaque SHA1Hash[20];
+# } URLAndHash;
+
+
+class CertChainType(S2.Enum[S2.UInt8]):
+    individual_certs = 0
+    pkipath = 1
+
+
+class URLAndHash(S2):
+    url: S2.Bytes
+    padding: S2.UInt8
+    hash: S2.Bytes[20]
+
+
+class CertificateURL(S2):
+    type: CertChainType
+    url_and_hash_list: URLAndHash
+
+
+
+# struct {
+#     TrustedAuthority trusted_authorities_list<0..2^16-1>;
+# } TrustedAuthorities;
+
+# struct {
+#     IdentifierType identifier_type;
+#     select (identifier_type) {
+#         case pre_agreed: struct {};
+#         case key_sha1_hash: SHA1Hash;
+#         case x509_name: DistinguishedName;
+#         case cert_sha1_hash: SHA1Hash;
+#     } identifier;
+# } TrustedAuthority;
+
+# enum {
+#     pre_agreed(0), key_sha1_hash(1), x509_name(2),
+#     cert_sha1_hash(3), (255)
+# } IdentifierType;
+
+# opaque DistinguishedName<1..2^16-1>;
+
+class IdentifierType(S2.Enum[S2.UInt8]):
+    pre_agreed = 0
+    key_sha1_hash = 1
+    x509_name = 2
+    cert_sha1_hash = 3
+
+
+class TrustedAuthority(S2):
+    identifier_type: IdentifierType
+
+
+class TrustedAuthorities(S2):
+    trusted_authorities_list: S2_make_tls_list(TrustedAuthority)
+
+
+
+# struct {
+#     CertificateStatusType status_type;
+#     select (status_type) {
+#         case ocsp: OCSPStatusRequest;
+#     } request;
+# } CertificateStatusRequest;
+
+# enum { ocsp(1), (255) } CertificateStatusType;
+
+# struct {
+#     ResponderID responder_id_list<0..2^16-1>;
+#     Extensions  request_extensions;
+# } OCSPStatusRequest;
+
+# opaque ResponderID<1..2^16-1>;
+# opaque Extensions<0..2^16-1>;
+
+
+class OCSPStatusRequest(S2):
+    responder_id_list: S2_make_tls_list(S2.Bytes)
+    extensions: S2.Bytes
+
+
+class CertificateStatusType(S2.Enum[S2.UInt8]):
+    ocsp = 1
+
+
+@register_extension(ExtensionType.status_request)
+class CertificateStatusRequest(S2):
+    status_type: CertificateStatusType
+    request: OCSPStatusRequest
+
+
+# struct {
+#     CertificateStatusType status_type;
+#     select (status_type) {
+#         case ocsp: OCSPResponse;
+#     } response;
+# } CertificateStatus;
+
+# opaque OCSPResponse<1..2^24-1>;
+
+class CertificateStatus(S2):
+    status_type: CertificateStatusType
+    response: S3.Bytes
+
+
+########################################
+#               RFC8422                #
+# https://www.ietf.org/rfc/rfc8422.txt #
+########################################
+
+
+# enum {
+#     deprecated(1..22),
+#     secp256r1 (23), secp384r1 (24), secp521r1 (25),
+#     x25519(29), x448(30),
+#     reserved (0xFE00..0xFEFF),
+#     deprecated(0xFF01..0xFF02),
+#     (0xFFFF)
+# } NamedCurve;
+
+# struct {
+# NamedCurve named_curve_list<2..2^16-1>
+# } NamedCurveList;
+
+class NamedCurve(S2.Enum[S2.UInt16]):
+    secp256r1 = 23
+    secp384r1 = 24
+    secp521r1 = 25
+    x25519 = 29
+    x448 = 30
+
+
+class NamedCurveList(S2):
+    named_curve_list: S2_make_tls_list(NamedCurve)
+
+
+# enum {
+#     uncompressed (0),
+#     deprecated (1..2),
+#     reserved (248..255)
+# } ECPointFormat;
+
+# struct {
+#     ECPointFormat ec_point_format_list<1..2^8-1>
+# } ECPointFormatList;
+
+class ECPointFormat(S2.Enum[S2.UInt8]):
+    uncompressed = 0
+
+
+@register_extension(ExtensionType.ec_points_format)
+class ECPointFormatList(S2):
+    ec_point_format_list: S1_make_tls_list(ECPointFormat)
+
+
+
+# enum {
+#     deprecated (1..2),
+#     named_curve (3),
+#     reserved(248..255)
+# } ECCurveType;
+
+# struct {
+#     opaque point <1..2^8-1>;
+# } ECPoint;
+
+# struct {
+#     ECCurveType    curve_type;
+#     select (curve_type) {
+#         case named_curve:
+#             NamedCurve namedcurve;
+#     };
+# } ECParameters;
+
+
+class ECCurveType(S2.Enum[S1.UInt8]):
+    named_curve = 3
+
+
+class ECPoint(S2):
+    point: S1.Bytes
+
+
+class ECParameters(S2):
+    curve_type: ECCurveType
+    namedcurve: NamedCurve
+
+
+
+# struct {
+#     ECParameters    curve_params;
+#     ECPoint         public;
+# } ServerECDHParams;
+
+#     enum {
+#     ec_diffie_hellman
+# } KeyExchangeAlgorithm;
+
+
+# select (KeyExchangeAlgorithm) {
+#     case ec_diffie_hellman:
+#         ServerECDHParams    params;
+#         Signature           signed_params;
+# } ServerKeyExchange;
+
+
+# enum {
+#     ecdsa(3),
+#     ed25519(7)
+#     ed448(8)
+# } SignatureAlgorithm;
+
+# select (SignatureAlgorithm) {
+#     case ecdsa:
+#         digitally-signed struct {
+#             opaque sha_hash[sha_size];
+#         };
+#     case ed25519,ed448:
+#         digitally-signed struct {
+#             opaque rawdata[rawdata_size];
+#         };
+# } Signature;
