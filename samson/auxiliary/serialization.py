@@ -480,6 +480,12 @@ class SizedSerializable(BaseObject):
         cls.UInt16 = UInt16
 
 
+        class UInt24(FixedInt):
+            SIZE = 24
+        
+        cls.UInt24 = UInt24
+
+
         class UInt32(FixedInt):
             SIZE = 32
         
