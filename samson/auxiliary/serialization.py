@@ -154,11 +154,13 @@ class SizedSerializable(BaseObject):
         for k, v in bound.kwargs.items():
             t = self.__annotations__[k]
             process(k, v, t)
+    
 
 
     def bind_signature(self, *args, **kwargs):
-        sig   = reconstruct({k:getattr(self.__class__, k, None) for k in self.__annotations__.keys()})
-        bound = sig.bind(*args, **kwargs)
+        sig_dict = {k:getattr(self.__class__, k, None) for k in self.__annotations__.keys()}
+        sig      = reconstruct(sig_dict)
+        bound    = sig.bind(*args, **kwargs)
         bound.apply_defaults()
         return bound
 
@@ -221,7 +223,7 @@ class SizedSerializable(BaseObject):
 
 
     def __iter__(self):
-        return tuple(self.__dict__.values()).__iter__()
+        return tuple([v for k,v in self.__dict__.items() if k != "parent"]).__iter__()
 
 
     def __hash__(self) -> int:
@@ -385,7 +387,7 @@ class SizedSerializable(BaseObject):
             def __getitem__(cls, selector):
 
                 class Inst(cls.TYPED_CLS or cls):
-                    pass
+                    val: object
 
 
                 Inst.__name__   = f'{cls.__name__}'
@@ -406,7 +408,7 @@ class SizedSerializable(BaseObject):
             @classmethod
             def _deserialize(cls, data, state=None):
                 left_over, result = cls.SELECTOR(cls, state)._deserialize(data)
-                return left_over, cls(result)
+                return left_over, result#cls(result)
 
 
         cls.Selector = Selector
@@ -446,54 +448,63 @@ class SizedSerializable(BaseObject):
 
         class Int8(SignedFixedInt):
             SIZE = 8
+            val: int
         
         cls.Int8 = Int8
 
 
         class Int16(SignedFixedInt):
             SIZE = 16
+            val: int
         
         cls.Int16 = Int16
 
 
         class Int32(SignedFixedInt):
             SIZE = 32
+            val: int
         
         cls.Int32 = Int32
 
 
         class Int64(SignedFixedInt):
             SIZE = 64
+            val: int
         
         cls.Int64 = Int64
 
 
         class UInt8(FixedInt):
             SIZE = 8
+            val: int
         
         cls.UInt8 = UInt8
 
 
         class UInt16(FixedInt):
             SIZE = 16
+            val: int
         
         cls.UInt16 = UInt16
 
 
         class UInt24(FixedInt):
             SIZE = 24
+            val: int
         
         cls.UInt24 = UInt24
 
 
         class UInt32(FixedInt):
             SIZE = 32
+            val: int
         
         cls.UInt32 = UInt32
 
 
         class UInt64(FixedInt):
             SIZE = 64
+            val: int
         
         cls.UInt64 = UInt64
 
@@ -806,6 +817,10 @@ class SizedSerializable(BaseObject):
         class Opaque(cls, metaclass=SubtypedValueMeta):
             SUBTYPE = None
             val: object
+
+            def __hash__(self) -> int:
+                return hash((self.__class__, self.val))
+
 
             def serialize(self):
                 return Bytes(self.val.serialize()).serialize()

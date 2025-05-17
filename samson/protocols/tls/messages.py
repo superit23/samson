@@ -25,6 +25,10 @@ class TypeSelector(BaseObject):
         self.wrapper_cls = wrapper_cls
         self.state_key   = state_key
         self.default     = default
+    
+
+    def __getitem__(self, idx):
+        return self.type_lut[idx]
 
 
     def register(self, type_spec):
@@ -43,6 +47,98 @@ class TypeSelector(BaseObject):
 EXT = TypeSelector(S2.Opaque, 'extension_type')
 REC = TypeSelector(S2.Opaque, 'type')
 HS  = TypeSelector(S3.Opaque, 'msg_type', default=S3.Bytes)
+
+
+
+#######################
+# B.4.  Cipher Suites #
+#######################
+
+# +------------------------------+-------------+
+# | Description                  | Value       |
+# +------------------------------+-------------+
+# | TLS_AES_128_GCM_SHA256       | {0x13,0x01} |
+# |                              |             |
+# | TLS_AES_256_GCM_SHA384       | {0x13,0x02} |
+# |                              |             |
+# | TLS_CHACHA20_POLY1305_SHA256 | {0x13,0x03} |
+# |                              |             |
+# | TLS_AES_128_CCM_SHA256       | {0x13,0x04} |
+# |                              |             |
+# | TLS_AES_128_CCM_8_SHA256     | {0x13,0x05} |
+# +------------------------------+-------------+
+
+
+
+# https://datatracker.ietf.org/doc/html/rfc8447#section-8
+
+# Cipher Suite Name                             | Value
+# ----------------------------------------------+------------
+# TLS_DHE_RSA_WITH_AES_128_GCM_SHA256           | {0x00,0x9E}
+# TLS_DHE_RSA_WITH_AES_256_GCM_SHA384           | {0x00,0x9F}
+# TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256       | {0xC0,0x2B}
+# TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384       | {0xC0,0x2C}
+# TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256         | {0xC0,0x2F}
+# TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384         | {0xC0,0x30}
+# TLS_DHE_RSA_WITH_AES_128_CCM                  | {0xC0,0x9E}
+# TLS_DHE_RSA_WITH_AES_256_CCM                  | {0xC0,0x9F}
+# TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256   | {0xCC,0xA8}
+# TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 | {0xCC,0xA9}
+# TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256     | {0xCC,0xAA}
+# TLS_DHE_PSK_WITH_AES_128_GCM_SHA256           | {0x00,0xAA}
+# TLS_DHE_PSK_WITH_AES_256_GCM_SHA384           | {0x00,0xAB}
+# TLS_DHE_PSK_WITH_AES_128_CCM                  | {0xC0,0xA6}
+# TLS_DHE_PSK_WITH_AES_256_CCM                  | {0xC0,0xA7}
+# TLS_ECDHE_PSK_WITH_AES_128_GCM_SHA256         | {0xD0,0x01}
+# TLS_ECDHE_PSK_WITH_AES_256_GCM_SHA384         | {0xD0,0x02}
+# TLS_ECDHE_PSK_WITH_AES_128_CCM_SHA256         | {0xD0,0x05}
+# TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256   | {0xCC,0xAC}
+# TLS_DHE_PSK_WITH_CHACHA20_POLY1305_SHA256     | {0xCC,0xAD}
+
+class TLSCipherSuite(S2.Enum[S2.UInt16]):
+    TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 = 0x009e
+    TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 = 0x009f
+    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 = 0xc02b
+    TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 = 0xc02c
+    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 = 0xc02f
+    TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 = 0xc030
+    TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 = 0xcca8
+    TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 = 0xcca9
+    TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256 = 0xccaa
+    TLS_DHE_PSK_WITH_AES_128_GCM_SHA256 = 0x00aa
+    TLS_DHE_PSK_WITH_AES_256_GCM_SHA384 = 0x00ab
+    TLS_DHE_PSK_WITH_AES_128_CCM = 0xc0a6
+    TLS_DHE_PSK_WITH_AES_256_CCM = 0xc0a7
+    TLS_ECDHE_PSK_WITH_AES_128_GCM_SHA256 = 0xd001
+    TLS_ECDHE_PSK_WITH_AES_256_GCM_SHA384 = 0xd002
+    TLS_ECDHE_PSK_WITH_AES_128_CCM_SHA256 = 0xd005
+    TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256 = 0xccac
+    TLS_DHE_PSK_WITH_CHACHA20_POLY1305_SHA256 = 0xccad
+    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA = 0xc00a
+    TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA = 0xc009
+    TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA = 0xc013
+    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA = 0xc014
+    TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 = 0xc023
+    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384 = 0xc024
+    TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 = 0xc027
+    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384 = 0xc028
+    TLS_DHE_RSA_WITH_AES_128_CBC_SHA256 = 0x0067
+    TLS_DHE_RSA_WITH_AES_256_CBC_SHA256 = 0x006b
+    TLS_RSA_WITH_AES_128_GCM_SHA256 = 0x009c
+    TLS_RSA_WITH_AES_256_GCM_SHA384 = 0x009d
+    TLS_RSA_WITH_AES_128_CBC_SHA = 0x002f
+    TLS_DHE_RSA_WITH_AES_128_CBC_SHA = 0x0033
+    TLS_RSA_WITH_AES_256_CBC_SHA = 0x0035
+    TLS_DHE_RSA_WITH_AES_256_CBC_SHA = 0x0039
+    TLS_RSA_WITH_AES_128_CBC_SHA256 = 0x003c
+    TLS_RSA_WITH_AES_256_CBC_SHA256 = 0x003d
+    TLS_AES_128_GCM_SHA256 = 0x1301
+    TLS_AES_256_GCM_SHA384 = 0x1302
+    TLS_CHACHA20_POLY1305_SHA256 = 0x1303
+    TLS_AES_128_CCM_SHA256 = 0x1304
+    TLS_AES_128_CCM_8_SHA256 = 0x1305
+    TLS_EMPTY_RENEGOTIATION_INFO_SCSV = 0x00ff
+
 
 
 #########################
@@ -316,6 +412,7 @@ class ExtensionType(S2.Enum[S2.UInt16]):
     client_certificate_type = 19
     server_certificate_type = 20
     padding = 21
+    encrypt_then_mac = 22
     extended_master_secret = 23
     compress_certificate = 27
     record_size_limit = 28
@@ -330,9 +427,9 @@ class ExtensionType(S2.Enum[S2.UInt16]):
     post_handshake_auth = 49
     signature_algorithms_cert = 50
     key_share = 51
+    next_protocol_negotiation = 13172
     encrypted_client_hello = 65037
     renegotiation_info = 65281
-
 
 
 
@@ -340,6 +437,28 @@ class Extension(S2):
     extension_type: ExtensionType
     extension_data: S2.Selector[EXT.selector]
 
+
+def _server_ext_override(cls, state):
+    if state['extension_type'] == ExtensionType.key_share:
+        return S2.Opaque[KeyShareServerHello]
+    elif state['extension_type'] == ExtensionType.supported_versions:
+        return S2.Opaque[SupportedVersionsServer]
+    else:
+        return EXT.selector(cls, state)
+
+
+class ServerExtension(S2):
+    extension_type: ExtensionType
+    extension_data: S2.Selector[_server_ext_override]
+
+
+################################################
+# 4.2.6.  Post-Handshake Client Authentication #
+################################################
+
+@EXT.register(ExtensionType.post_handshake_auth)
+class PostHandshakeAuth(S2.Null):
+    pass
 
 
 ########################################
@@ -410,18 +529,13 @@ class NamedGroupList(S2):
 # } ClientHello;
 
 
-
-# class CipherSuite(S1):
-#     a: S1.UInt8
-#     b: S1.UInt8
-
 @HS.register(HandshakeType.client_hello)
 class ClientHello(S1):
     legacy_version: ProtocolVersion
     random: S1.Bytes[32]
     legacy_session_id: S1.Bytes
-    cipher_suites: S2_make_tls_list(S1.UInt16)
-    legacy_compression_methods: S1.Opaque[S1.Bytes]
+    cipher_suites: S2_make_tls_list(TLSCipherSuite)
+    legacy_compression_methods: S1.Bytes
     extensions: S2_make_tls_list(Extension)
 
 
@@ -438,10 +552,10 @@ class ClientHello(S1):
 class ServerHello(S1):
     legacy_version: ProtocolVersion
     random: S1.Bytes[32]
-    legacy_session_id_echo: S1.Opaque[S1.Bytes]
-    cipher_suite: S2.UInt16
+    legacy_session_id_echo: S1.Bytes
+    cipher_suite: TLSCipherSuite
     legacy_compression_methods: S1.UInt8=0
-    extension: S2_make_tls_list(Extension)
+    extensions: S2_make_tls_list(ServerExtension)
 
 
 
@@ -459,7 +573,7 @@ class KeyShareEntry(S2):
 #     KeyShareEntry client_shares<0..2^16-1>;
 # } KeyShareClientHello;
 
-# @register_extension(ExtensionType.key_share)
+
 @EXT.register(ExtensionType.key_share)
 class KeyShareClientHello(S2):
     client_shares: S2_make_tls_list(KeyShareEntry)
@@ -506,6 +620,7 @@ class UncompressedPointRepresentation(S2):
 class PskKeyExchangeMode(S2.Enum[S2.UInt8]):
     psk_ke = 0
     psk_dhe_ke = 1
+
 
 @EXT.register(ExtensionType.psk_key_exchange_modes)
 class PskKeyExchangeModes(S2):
@@ -670,6 +785,13 @@ class SignatureScheme(S2.Enum[S2.UInt16]):
     rsa_pss_pss_sha384 = 0x080a
     rsa_pss_pss_sha512 = 0x080b
 
+    SHA224_ECDSA = 0x0303
+    SHA224_RSA   = 0x0301
+    SHA224_DSA   = 0x0302
+    SHA256_DSA   = 0x0402
+    SHA384_DSA   = 0x0502
+    SHA512_DSA   = 0x0602
+
     # Legacy algorithms
     rsa_pkcs1_sha1 = 0x0201
     ecdsa_sha1 = 0x0203
@@ -679,6 +801,7 @@ class SignatureScheme(S2.Enum[S2.UInt16]):
 
 
 @EXT.register(ExtensionType.signature_algorithms)
+@EXT.register(ExtensionType.delegated_credentials)
 class SignatureSchemeList(S2):
     supported_signature_algorithms: S2_make_tls_list(SignatureScheme)
 
@@ -693,6 +816,7 @@ class SignatureSchemeList(S2):
 #     Extension extensions<0..2^16-1>;
 # } EncryptedExtensions;
 
+@HS.register(HandshakeType.encrypted_extensions)
 class EncryptedExtensions(S2):
     extensions: S2_make_tls_list(Extension)
 
@@ -702,6 +826,7 @@ class EncryptedExtensions(S2):
 #     Extension extensions<2..2^16-1>;
 # } CertificateRequest;
 
+@HS.register(HandshakeType.certificate_request)
 class CertificateRequest(S2):
     certificate_request_context: S1.Bytes
     extensions: S2_make_tls_list(Extension)
@@ -709,6 +834,7 @@ class CertificateRequest(S2):
 
 
 # struct {} EndOfEarlyData;
+@HS.register(HandshakeType.end_of_early_data)
 class EndOfEarlyData(S2.Null):
     pass
 
@@ -788,6 +914,7 @@ class CertificateEntry(S2):
 #     CertificateEntry certificate_list<0..2^24-1>;
 # } Certificate;
 
+@HS.register(HandshakeType.certificate)
 class Certificate(S2):
     certificate_request_context: S1.Bytes
     certificate_list: S3_make_tls_list(CertificateEntry)
@@ -798,6 +925,7 @@ class Certificate(S2):
 #     opaque signature<0..2^16-1>;
 # } CertificateVerify;
 
+@HS.register(HandshakeType.certificate_verify)
 class CertificateVerify(S2):
     algorithm: SignatureScheme
     signature: S2.Bytes
@@ -807,6 +935,7 @@ class CertificateVerify(S2):
 #     opaque verify_data[Hash.length];
 # } Finished;
 
+@HS.register(HandshakeType.finished)
 class Finished(S2):
     verify_data: S2.GreedyBytes
 
@@ -824,6 +953,7 @@ class Finished(S2):
 #     Extension extensions<0..2^16-2>;
 # } NewSessionTicket;
 
+@HS.register(HandshakeType.new_session_ticket)
 class NewSessionTicket(S2):
     ticket_lifetime: S2.UInt32
     ticket_age_add: S2.UInt32
@@ -852,88 +982,10 @@ class KeyUpdateRequest(S2.Enum[S2.UInt8]):
     update_requested = 1
 
 
+@HS.register(HandshakeType.key_update)
 class KeyUpdate(S2):
     request_update: KeyUpdateRequest
 
-
-
-#######################
-# B.4.  Cipher Suites #
-#######################
-
-# +------------------------------+-------------+
-# | Description                  | Value       |
-# +------------------------------+-------------+
-# | TLS_AES_128_GCM_SHA256       | {0x13,0x01} |
-# |                              |             |
-# | TLS_AES_256_GCM_SHA384       | {0x13,0x02} |
-# |                              |             |
-# | TLS_CHACHA20_POLY1305_SHA256 | {0x13,0x03} |
-# |                              |             |
-# | TLS_AES_128_CCM_SHA256       | {0x13,0x04} |
-# |                              |             |
-# | TLS_AES_128_CCM_8_SHA256     | {0x13,0x05} |
-# +------------------------------+-------------+
-
-
-
-# https://datatracker.ietf.org/doc/html/rfc8447#section-8
-
-# Cipher Suite Name                             | Value
-# ----------------------------------------------+------------
-# TLS_DHE_RSA_WITH_AES_128_GCM_SHA256           | {0x00,0x9E}
-# TLS_DHE_RSA_WITH_AES_256_GCM_SHA384           | {0x00,0x9F}
-# TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256       | {0xC0,0x2B}
-# TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384       | {0xC0,0x2C}
-# TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256         | {0xC0,0x2F}
-# TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384         | {0xC0,0x30}
-# TLS_DHE_RSA_WITH_AES_128_CCM                  | {0xC0,0x9E}
-# TLS_DHE_RSA_WITH_AES_256_CCM                  | {0xC0,0x9F}
-# TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256   | {0xCC,0xA8}
-# TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 | {0xCC,0xA9}
-# TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256     | {0xCC,0xAA}
-# TLS_DHE_PSK_WITH_AES_128_GCM_SHA256           | {0x00,0xAA}
-# TLS_DHE_PSK_WITH_AES_256_GCM_SHA384           | {0x00,0xAB}
-# TLS_DHE_PSK_WITH_AES_128_CCM                  | {0xC0,0xA6}
-# TLS_DHE_PSK_WITH_AES_256_CCM                  | {0xC0,0xA7}
-# TLS_ECDHE_PSK_WITH_AES_128_GCM_SHA256         | {0xD0,0x01}
-# TLS_ECDHE_PSK_WITH_AES_256_GCM_SHA384         | {0xD0,0x02}
-# TLS_ECDHE_PSK_WITH_AES_128_CCM_SHA256         | {0xD0,0x05}
-# TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256   | {0xCC,0xAC}
-# TLS_DHE_PSK_WITH_CHACHA20_POLY1305_SHA256     | {0xCC,0xAD}
-
-class TLSCipherSuites(S2.Enum[S1.UInt16]):
-    TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 = 0x009e
-    TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 = 0x009f
-    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 = 0xc02b
-    TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 = 0xc02c
-    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 = 0x0c2f
-    TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 = 0xc030
-    TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 = 0xcca8
-    TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 = 0xcca9
-    TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256 = 0xccaa
-    TLS_DHE_PSK_WITH_AES_128_GCM_SHA256 = 0x00aa
-    TLS_DHE_PSK_WITH_AES_256_GCM_SHA384 = 0x00ab
-    TLS_DHE_PSK_WITH_AES_128_CCM = 0xc0a6
-    TLS_DHE_PSK_WITH_AES_256_CCM = 0xc0a7
-    TLS_ECDHE_PSK_WITH_AES_128_GCM_SHA256 = 0xd001
-    TLS_ECDHE_PSK_WITH_AES_256_GCM_SHA384 = 0xd002
-    TLS_ECDHE_PSK_WITH_AES_128_CCM_SHA256 = 0xd005
-    TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256 = 0xccac
-    TLS_DHE_PSK_WITH_CHACHA20_POLY1305_SHA256 = 0xccad
-    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA = 0xc00a
-    TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA = 0xc009
-    TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA = 0xc013
-    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA = 0xc014
-    TLS_RSA_WITH_AES_128_GCM_SHA256 = 0x009c
-    TLS_RSA_WITH_AES_256_GCM_SHA384 = 0x009d
-    TLS_RSA_WITH_AES_128_CBC_SHA = 0x002f
-    TLS_RSA_WITH_AES_256_CBC_SHA = 0x0035
-    TLS_AES_128_GCM_SHA256 = 0x1301
-    TLS_AES_256_GCM_SHA384 = 0x1302
-    TLS_CHACHA20_POLY1305_SHA256 = 0x1303
-    TLS_AES_128_CCM_SHA256 = 0x1304
-    TLS_AES_128_CCM_8_SHA256 = 0x1305
 
 
 #############################################################
@@ -964,7 +1016,7 @@ class NameType(S2.Enum[S2.UInt8]):
 
 class ServerName(S2):
     name_type: NameType
-    name: S2.Opaque[S2.Bytes]
+    name: S2.Bytes
 
 
 @EXT.register(ExtensionType.server_name)
@@ -1146,6 +1198,8 @@ class NamedCurveList(S2):
 
 class ECPointFormat(S2.Enum[S2.UInt8]):
     uncompressed = 0
+    ansiX962_compressed_prime = 1
+    ansiX962_compressed_char2 = 2
 
 
 @EXT.register(ExtensionType.ec_points_format)
@@ -1623,3 +1677,41 @@ class DelegatedCredential(S2):
 # @register_extension(ExtensionType.delegated_credentials)
 # class DelegatedCredentialsExtension(S2):
 #     credentials: S2_make_tls_list(DelegatedCredential)
+
+
+
+#################################################
+#                   RFC5246                     #
+# https://datatracker.ietf.org/doc/html/rfc5246 #
+#################################################
+
+# struct {
+#     enum { change_cipher_spec(1), (255) } type;
+# } ChangeCipherSpec;
+
+@REC.register(ContentType.change_cipher_spec)
+class ChangeCipherSpec(S2.Enum[S2.UInt8]):
+    change_cipher_spec = 1
+
+
+
+
+#################################################################################
+#                   Next Protocol Negotation Extension Draft                    #
+# https://datatracker.ietf.org/doc/html/draft-agl-tls-nextprotoneg-04#section-3 #
+#################################################################################
+
+@EXT.register(ExtensionType.next_protocol_negotiation)
+class NextProtocolNegotation(S2.Null):
+    pass
+
+
+
+###########################################################
+#                        RFC7366                          #
+# https://datatracker.ietf.org/doc/html/rfc7366#section-2 #
+###########################################################
+
+@EXT.register(ExtensionType.encrypt_then_mac)
+class EncryptThenMac(S2.Null):
+    pass
