@@ -21,8 +21,10 @@ class KeySchedule(BaseObject):
     CLIENT_APPLICATION_TRAFFIC_SECRET = b"client application secret"
     SERVER_APPLICATION_TRAFFIC_SECRET = b"server application secret"
 
+    FINISHED = b'finished'
 
-    def __init__(self, ciphersuite: 'Ciphersuite', psk: bytes=b'\x00'):
+
+    def __init__(self, ciphersuite: 'Ciphersuite', psk: bytes=None):
         self.psk         = psk
         self.ciphersuite = ciphersuite
         self.keys        = {}
@@ -30,6 +32,10 @@ class KeySchedule(BaseObject):
 
     def __getitem__(self, idx):
         return self.keys[idx]
+
+
+    def __setitem__(self, idx, val):
+        self.keys[idx] = val
 
 
     def process_keys(self, entropy: bytes, keys: list, transcript_hash: bytes):
@@ -40,17 +46,18 @@ class KeySchedule(BaseObject):
                 transcript_hash=transcript_hash
             )
 
-            self.keys[key] = derived_key
+            self[key] = derived_key
 
 
     def create_key(self, key_name, salt, ikm, order, transcript_hash):
         entropy = self.ciphersuite.hkdf.extract(salt, ikm)
-        self.keys[key_name]  = entropy
+        self[key_name] = entropy
 
         self.process_keys(entropy, order, transcript_hash)
 
+
     
-    def process_psk(self, transcript_hash: bytes):
+    def process_early_secret(self, transcript_hash: bytes):
         order = [
             KeySchedule.BINDER_KEY,
             KeySchedule.CLIENT_EARLY_TRAFFIC_SECRET,
@@ -59,7 +66,7 @@ class KeySchedule(BaseObject):
 
         self.create_key(
             key_name=KeySchedule.EARLY_SECRET,
-            salt=b'\x00',
+            salt=b'\x00'*len(transcript_hash),
             ikm=self.psk,
             order=order,
             transcript_hash=transcript_hash
@@ -67,7 +74,9 @@ class KeySchedule(BaseObject):
 
 
 
-    def process_shared_secret(self, shared_secret: bytes, transcript_hash: bytes):
+    def process_handshake_secret(self, shared_secret: bytes, transcript_hash: bytes):
+        empty_hash = self.ciphersuite.hash_obj.hash(b'')
+
         # Compute handshake secrets
         order = [
             KeySchedule.CLIENT_HANDSHAKE_TRAFFIC_SECRET,
@@ -75,9 +84,9 @@ class KeySchedule(BaseObject):
         ]
 
         salt = self.ciphersuite.derive_secret(
-            secret=self.psk,
+            secret=self[KeySchedule.EARLY_SECRET],
             label=b'derived',
-            transcript_hash=transcript_hash
+            transcript_hash=empty_hash
         )
 
 
@@ -89,6 +98,12 @@ class KeySchedule(BaseObject):
             transcript_hash=transcript_hash
         )
 
+        self.keys[KeySchedule.FINISHED] = self.ciphersuite.derive_secret(self[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET], b'finished', b'')
+
+    
+
+    def process_master_secret(self, transcript_hash: bytes):
+        empty_hash = self.ciphersuite.hash_obj.hash(b'')
 
         # Compute application traffic secrets
         order = [
@@ -100,19 +115,19 @@ class KeySchedule(BaseObject):
 
 
         salt = self.ciphersuite.derive_secret(
-            secret=salt,
+            secret=self[KeySchedule.HANDSHAKE_SECRET],
             label=b'derived',
-            transcript_hash=transcript_hash
+            transcript_hash=empty_hash
         )
 
         self.create_key(
             key_name=KeySchedule.MASTER_SECRET,
             salt=salt,
-            ikm=b'\x00',
+            ikm=b'\x00'*len(transcript_hash),
             order=order,
             transcript_hash=transcript_hash
         )
 
         # Create application key update arrays
-        self.keys[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET] = [self.keys[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0]]
-        self.keys[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET] = [self.keys[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET_0]]
+        self[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET] = [self[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0]]
+        self[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET] = [self[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET_0]]

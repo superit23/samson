@@ -1,11 +1,12 @@
 from enum import Enum, auto
 from queue import Queue
 from samson.protocols.tls.fsm import FSM
-from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext
+from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext, ContentType, Finished
 from samson.protocols.tls.channel import Channel
 from samson.protocols.tls.key_schedule import KeySchedule
 from samson.core.base_object import BaseObject
 from samson.utilities.bytes import Bytes
+from samson.macs.hmac import HMAC
 
 import logging
 log = logging.getLogger(__name__)
@@ -35,9 +36,9 @@ def _build_extension(ext_type, value):
 
 
 class TLSConfiguration(BaseObject):
-    def __init__(self, kex, ciphersuite: 'Ciphersuite', psk: bytes=b'\x00'):
+    def __init__(self, kex, ciphersuite: 'Ciphersuite', psk: bytes=None):
         self.kex         = kex
-        self.psk         = psk
+        self.psk         = psk or Bytes().zfill(ciphersuite.length)
         self.ciphersuite = ciphersuite
 
 
@@ -55,10 +56,12 @@ class TLSState(BaseObject):
         return bytes(self.config.kex.pub.serialize_uncompressed())
     
 
+
     def process_key_share(self, ext_data: bytes):
         server_key  = self.config.kex.G.curve.decode_point(ext_data)
         derived_key = self.config.kex.derive_key(server_key)
         self.key_schedule.process_shared_secret(derived_key, self.calculate_transcript_hash())
+
 
 
     def calculate_transcript_hash(self):
@@ -66,6 +69,7 @@ class TLSState(BaseObject):
         to_hash = b''.join([msg.serialize() for msg in self.sent_messages])
         return self.config.ciphersuite.hash_obj.hash(to_hash)
     
+
 
     def update_traffic_keys(self):
         # https://datatracker.ietf.org/doc/html/rfc8446#section-7.2
@@ -81,24 +85,24 @@ class TLSState(BaseObject):
             self.key_schedule[secret_name].append(new_client_key)
     
 
-    def get_traffic_key(self, secret_name: str):
-        latest_traffic_secret = self.key_schedule[secret_name][-1]
 
+    def get_traffic_key(self, secret: bytes):
         traffic_write_key = self.config.ciphersuite.hkdf_expand_label(
-            secret=latest_traffic_secret,
+            secret=secret,
             label=b"key",
             context=b'',
-            length=32
+            length=16
         )
 
         traffic_write_iv = self.config.ciphersuite.hkdf_expand_label(
-            secret=latest_traffic_secret,
+            secret=secret,
             label=b"iv",
             context=b'',
             length=12
         )
 
         return traffic_write_key, traffic_write_iv
+
 
 
     def client_hello(self):
@@ -147,6 +151,7 @@ class TLSState(BaseObject):
         return tls_record
     
 
+
     def create_application_data(self, content_type: ContentType, data: bytes):
         inner_plaintext = TLSInnerPlaintext(
             content=data,
@@ -177,8 +182,32 @@ class TLSState(BaseObject):
         return ciphertext
 
 
-    def decrypt_server_application_data(self, ):
-        server_write_key, server_write_iv = self.get_traffic_key(KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET)
+
+    def finished(self):
+        hmac = HMAC(self.key_schedule[KeySchedule.FINISHED], self.config.ciphersuite.hash_obj)
+        verify_data = hmac.generate(self.calculate_transcript_hash())
+
+        handshake = Handshake(
+            msg_type=HandshakeType.finished,
+            message=S3.Bytes(Finished(verify_data))
+        )
+        return handshake
+
+
+    def decrypt_server_application_data(self, ciphertext: TLSPlaintext):
+        server_write_key, server_write_iv = self.get_traffic_key(self.key_schedule[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET])
+
+        encrypted_data  = ciphertext.fragment.val.val
+        additional_data = ContentType.application_data.serialize() + ProtocolVersion.TLSv12.serialize() + Bytes(len(encrypted_data)).zfill(2)
+
+        decrypted_record = self.config.ciphersuite.decrypt(
+            key=server_write_key,
+            nonce=server_write_iv ^ Bytes(self.read_seq_num).zfill(12),
+            data=encrypted_data,
+            aad=additional_data
+        )
+
+        return decrypted_record
 
 
 
@@ -191,15 +220,17 @@ class TLSHandshakeClientFSM(FSM):
         self.channel       = channel
 
 
+
     @FSM.transition(TLSHSCState.START)
     def initiate(self):
-        log.info("Sending hello")
+        log.info("START: Sending hello")
 
         tls_record = self.state.client_hello()
         print(bytes(tls_record))
         self.channel.send(bytes(tls_record))
         
         return (TLSHSCState.WAIT_FOR_HELLO, (), {})
+
 
 
     @FSM.transition(TLSHSCState.WAIT_FOR_HELLO)
@@ -210,7 +241,7 @@ class TLSHandshakeClientFSM(FSM):
         self.state.sent_messages.append(handshake)
         self.state.read_seq_num += 1
 
-        log.info("Received reply")
+        log.info(f"WAIT_FOR_HELLO: Received reply of {handshake.msg_type}")
 
         match handshake.msg_type:
             case HandshakeType.server_hello:
@@ -222,16 +253,33 @@ class TLSHandshakeClientFSM(FSM):
                     extensions = server_hello.extensions.val.val
                     for ext in extensions:
                         if ext.extension_type == ExtensionType.key_share:
-                            log.info("Processing server key share")
+                            log.info("WAIT_FOR_HELLO: Processing server key share")
                             self.state.process_key_share(ext.extension_data.val.val.server_share.key_exchange.val)
             
-                return (self.FINISHED, (), {})
+                return (TLSHSCState.RECV_DATA, (), {})
 
             case _:
-                raise TLSProtocolError(AlertDescription.unexpected_message)
+                raise TLSProtocolError(AlertDescription.unexpected_message, reply)
 
 
-    @FSM.transition(TLSHSCState.WAIT_FOR_HELLO)
-    def wait_for_hello(self):
-        reply     = self.reply_queue.get()
-        handshake = reply.
+
+    @FSM.transition(TLSHSCState.RECV_DATA)
+    def recv_data(self):
+        reply = self.reply_queue.get()
+        self.sent_messages.append(reply)
+        self.state.read_seq_num += 1
+
+        log.info(f"RECV_DATA: Received reply of {reply.type}")
+
+        match reply.type:
+            case ContentType.change_cipher_spec:
+                return (TLSHSCState.RECV_DATA, (), {})
+            
+            case ContentType.application_data:
+                log.info(f"RECV_DATA: Processing application data")
+                self.state.decrypt_server_application_data(reply)
+                return (TLSHSCState.RECV_DATA, (), {})
+
+            case _:
+                raise TLSProtocolError(AlertDescription.unexpected_message, reply)
+

@@ -106,7 +106,7 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
 
 
 
-    def decrypt(self, nonce: bytes, authed_ciphertext: bytes, data: bytes=b'') -> Bytes:
+    def decrypt(self, nonce: bytes, authed_ciphertext: bytes, data: bytes=b'', verify: bool=True) -> Bytes:
         """
         Decrypts `ciphertext`.
 
@@ -114,6 +114,7 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
             nonce             (bytes): Bytes-like nonce.
             authed_ciphertext (bytes): Bytes-like object to be decrypted.
             data              (bytes): Bytes-like additional data to be authenticated.
+            verify            (bool): Whether or not to verify the tag.
 
         Returns:
             Bytes: Resulting plaintext.
@@ -125,7 +126,8 @@ class GCM(StreamingBlockCipherMode, AuthenticatedCipher):
         data     = Bytes.wrap(data)
         tag      = self.auth(ciphertext, data, tag_mask)[:self.tag_length]
 
-        self.verify_tag(tag, orig_tag)
+        if verify:
+            self.verify_tag(tag, orig_tag)
 
         return self.ctr.decrypt(ciphertext)
 

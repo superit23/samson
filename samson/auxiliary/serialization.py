@@ -565,14 +565,13 @@ class SizedSerializable(BaseObject):
         cls.Int = Int
 
 
-        class SizedList(Subtypable):
-            SUBTYPE = None
+        class BaseList(cls):
             val: list
 
             def __init__(self, val=None) -> None:
-                val  = [] if val is None else val
-                args = [a if type(a) is self.SUBTYPE else self.SUBTYPE(a) for a in val]
-                super().__init__(args)
+                val = [] if val is None else val
+                super().__init__(val)
+
 
             def serialize(self):
                 data = b''
@@ -581,17 +580,6 @@ class SizedSerializable(BaseObject):
                 
                 return self.pack_len(self.val) + data
 
-
-            @classmethod
-            def _deserialize(cls, data, state=None):
-                objs = []
-                data, val_len = cls.unpack_len(data)
-                for _ in range(val_len):
-                    data, obj = cls.SUBTYPE.deserialize(data)
-                    objs.append(obj)
-            
-                return data, cls(objs)
-            
 
             def native(self):
                 return [elem.native() for elem in self.val]
@@ -611,6 +599,34 @@ class SizedSerializable(BaseObject):
 
             def __delitem__(self, idx):
                 del self.val[idx]
+
+
+            def append(self, item):
+                self.val.append(item)
+
+
+        cls.BaseList = BaseList
+
+
+        class SizedList(BaseList, Subtypable):
+            SUBTYPE = None
+            val: list
+
+            def __init__(self, val=None) -> None:
+                val  = [] if val is None else val
+                args = [a if type(a) is self.SUBTYPE else self.SUBTYPE(a) for a in val]
+                super().__init__(args)
+
+
+            @classmethod
+            def _deserialize(cls, data, state=None):
+                objs = []
+                data, val_len = cls.unpack_len(data)
+                for _ in range(val_len):
+                    data, obj = cls.SUBTYPE.deserialize(data)
+                    objs.append(obj)
+            
+                return data, cls(objs)
 
 
             def append(self, item):

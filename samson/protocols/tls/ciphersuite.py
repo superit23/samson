@@ -28,7 +28,7 @@ class Ciphersuite(BaseObject):
     def hkdf_expand_label(self, secret: bytes, label: bytes, context: bytes, length: int):
         label = HkdfLabel(
             length=length,
-            label=b'tls13' + label,
+            label=b'tls13 ' + label,
             context=context
         )
         hkdf = HKDF(self.hash_obj, length)
@@ -39,6 +39,10 @@ class Ciphersuite(BaseObject):
         return self.hkdf_expand_label(secret, label, transcript_hash, self.length)
 
 
-    def encrypt(self, key, nonce, data, aad):
+    def encrypt(self, key, nonce, data, aad, verify=True):
         cipher = self.cipher_cls(key)
-        return cipher.encrypt(nonce, data, aad)
+        return cipher.encrypt(nonce, data, aad, verify)
+
+    def decrypt(self, key, nonce, data, aad, verify=True):
+        cipher = self.cipher_cls(key)
+        return cipher.decrypt(nonce, data, aad, verify)

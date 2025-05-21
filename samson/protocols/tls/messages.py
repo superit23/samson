@@ -1,5 +1,6 @@
 from samson.auxiliary.serialization import Serializable
 from samson.core.base_object import BaseObject
+from samson.utilities.bytes import Bytes
 
 # https://datatracker.ietf.org/doc/html/rfc8446#section-4
 S1 = Serializable[1]
@@ -417,6 +418,7 @@ class ExtensionType(S2.Enum[S2.UInt16]):
     compress_certificate = 27
     record_size_limit = 28
     delegated_credentials = 34
+    session_ticket = 35
     pre_shared_key = 41
     early_data = 42
     supported_versions = 43
@@ -794,7 +796,8 @@ class SignatureScheme(S2.Enum[S2.UInt16]):
 
     # Legacy algorithms
     rsa_pkcs1_sha1 = 0x0201
-    ecdsa_sha1 = 0x0203
+    dsa_sha1       = 0x0202
+    ecdsa_sha1     = 0x0203
 
     # Reserved Code Points
     private_use = 0xFE00
@@ -816,9 +819,57 @@ class SignatureSchemeList(S2):
 #     Extension extensions<0..2^16-1>;
 # } EncryptedExtensions;
 
+class PaddedSubtypableMeta(type):
+    TYPED_CLS = None
+
+    def __getitem__(cls, l_type):
+        class Inst(cls.TYPED_CLS or cls):
+            val: list
+            pad_len: int
+
+        Inst.__name__ = f'{cls.__name__}[{l_type.__name__}]'
+        Inst.SUBTYPE = l_type
+        return Inst
+
+
+class PaddedGreedyList(S2.BaseList, metaclass=PaddedSubtypableMeta):
+    SUBTYPE = None
+    val: list
+    pad_len: int
+
+    def __init__(self, val=None, pad_len: int=0):
+        self.val = [] if val is None else val
+        self.pad_len = pad_len
+
+
+    def serialize(self):
+        data = b''
+        for v in self.val:
+            data += v.serialize()
+        
+        return data + (b'\x00' * self.pad_len)
+
+
+    @classmethod
+    def _deserialize(cls, data, state=None):
+        objs    = []
+        pad_len = 0
+        while data:
+            if not Bytes(data).int():
+                pad_len = len(data)
+                break
+
+            data, obj = cls.SUBTYPE.deserialize(data)
+            objs.append(obj)
+    
+        return data, cls(objs, pad_len=pad_len)
+
+
+
+
 @HS.register(HandshakeType.encrypted_extensions)
 class EncryptedExtensions(S2):
-    extensions: S2_make_tls_list(Extension)
+    extensions: S2.Opaque[PaddedGreedyList[Extension]]
 
 
 # struct {
@@ -905,7 +956,7 @@ class CertificateType(S1.Enum[S1.UInt8]):
 
 
 class CertificateEntry(S2):
-    certificate: S2.Bytes
+    certificate: S3.Bytes
     extensions: S2_make_tls_list(Extension)
 
 
@@ -1714,4 +1765,10 @@ class NextProtocolNegotation(S2.Null):
 
 @EXT.register(ExtensionType.encrypt_then_mac)
 class EncryptThenMac(S2.Null):
+    pass
+
+
+
+@EXT.register(ExtensionType.session_ticket)
+class SessionTicket(S2.Null):
     pass
