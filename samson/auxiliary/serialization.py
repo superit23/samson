@@ -195,7 +195,7 @@ class SizedSerializable(BaseObject):
 
     @classmethod
     def _deserialize(cls, data, state: dict=None):
-        objs  = {}
+        objs  = {'parent_state': state}
         objs2 = []
 
         for k, v in cls.__annotations__.items():
@@ -407,7 +407,7 @@ class SizedSerializable(BaseObject):
 
             @classmethod
             def _deserialize(cls, data, state=None):
-                left_over, result = cls.SELECTOR(cls, state)._deserialize(data)
+                left_over, result = cls.SELECTOR(cls, state)._deserialize(data, state)
                 return left_over, result#cls(result)
 
 
@@ -623,7 +623,7 @@ class SizedSerializable(BaseObject):
                 objs = []
                 data, val_len = cls.unpack_len(data)
                 for _ in range(val_len):
-                    data, obj = cls.SUBTYPE.deserialize(data)
+                    data, obj = cls.SUBTYPE.deserialize(data, {'parent_state': state})
                     objs.append(obj)
             
                 return data, cls(objs)
@@ -657,7 +657,7 @@ class SizedSerializable(BaseObject):
             def _deserialize(cls, data, state=None):
                 objs = []
                 while data:
-                    data, obj = cls.SUBTYPE.deserialize(data)
+                    data, obj = cls.SUBTYPE.deserialize(data, {'parent_state': state})
                     objs.append(obj)
             
                 return data, cls(objs)
@@ -777,7 +777,7 @@ class SizedSerializable(BaseObject):
 
             @classmethod
             def _deserialize(cls, data, state=None):
-                left_over, i8 = cls.SUBTYPE.deserialize(data)
+                left_over, i8 = cls.SUBTYPE.deserialize(data, {'parent_state': state})
                 return left_over, cls(i8.native())
 
 
@@ -816,7 +816,7 @@ class SizedSerializable(BaseObject):
 
             @classmethod
             def _deserialize(cls, data, state=None):
-                left_over, i8 = UInt[cls.SIZE].deserialize(data)
+                left_over, i8 = UInt[cls.SIZE].deserialize(data, {'parent_state': state})
                 return left_over, cls(i8.native())
         
 

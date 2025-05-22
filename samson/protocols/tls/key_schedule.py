@@ -13,6 +13,7 @@ class KeySchedule(BaseObject):
     SERVER_APPLICATION_TRAFFIC_SECRET_0 = b"s ap traffic"
     EXPORTER_MASTER_SECRET   = b"exp master"
     RESUMPTION_MASTER_SECRET = b"res master"
+    RESUMPTION               = b'resumption'
 
     EARLY_SECRET     = b"early secret"
     HANDSHAKE_SECRET = b"handshake secret"
@@ -49,6 +50,7 @@ class KeySchedule(BaseObject):
             self[key] = derived_key
 
 
+
     def create_key(self, key_name, salt, ikm, order, transcript_hash):
         entropy = self.ciphersuite.hkdf.extract(salt, ikm)
         self[key_name] = entropy
@@ -56,10 +58,28 @@ class KeySchedule(BaseObject):
         self.process_keys(entropy, order, transcript_hash)
 
 
+
+    def process_binder_secret(self):
+        entropy = self.ciphersuite.hkdf.extract(b'\x00'*self.ciphersuite.length, self.psk)
+        self[KeySchedule.EARLY_SECRET] = entropy
+
+        empty_hash = self.ciphersuite.hash_obj.hash(b'')
+
+        # TODO: Handle external binder keys
+        # "ext binder" | "res binder"
+        derived_key = self.ciphersuite.derive_secret(
+            secret=entropy,
+            label=b"res binder",
+            transcript_hash=empty_hash
+        )
+
+        self[KeySchedule.BINDER_KEY] = derived_key
+
+
+
     
     def process_early_secret(self, transcript_hash: bytes):
         order = [
-            KeySchedule.BINDER_KEY,
             KeySchedule.CLIENT_EARLY_TRAFFIC_SECRET,
             KeySchedule.EARLY_EXPORTER_MASTER_SECRET
         ]
@@ -100,7 +120,7 @@ class KeySchedule(BaseObject):
 
         self.keys[KeySchedule.FINISHED] = self.ciphersuite.derive_secret(self[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET], b'finished', b'')
 
-    
+
 
     def process_master_secret(self, transcript_hash: bytes):
         empty_hash = self.ciphersuite.hash_obj.hash(b'')
@@ -109,8 +129,7 @@ class KeySchedule(BaseObject):
         order = [
             KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0,
             KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET_0,
-            KeySchedule.EXPORTER_MASTER_SECRET,
-            KeySchedule.RESUMPTION_MASTER_SECRET
+            KeySchedule.EXPORTER_MASTER_SECRET
         ]
 
 
@@ -131,3 +150,17 @@ class KeySchedule(BaseObject):
         # Create application key update arrays
         self[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET] = [self[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0]]
         self[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET] = [self[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET_0]]
+
+
+
+    def process_resumption_secret(self, transcript_hash: bytes):
+        self.process_keys(self[KeySchedule.MASTER_SECRET], [KeySchedule.RESUMPTION_MASTER_SECRET], transcript_hash)
+
+
+        derived_key = self.ciphersuite.derive_secret(
+            secret=self[KeySchedule.RESUMPTION_MASTER_SECRET],
+            label=KeySchedule.RESUMPTION,
+            transcript_hash=b'\x00\x00'
+        )
+
+        self[KeySchedule.RESUMPTION] = derived_key

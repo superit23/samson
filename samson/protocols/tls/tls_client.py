@@ -1,11 +1,13 @@
 from enum import Enum, auto
 from queue import Queue
 from samson.protocols.tls.fsm import FSM
-from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext, ContentType, Finished
+from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext, ContentType, Finished, PskIdentity, PreSharedKeyExtensionClient, OfferedPsks
 from samson.protocols.tls.channel import Channel
 from samson.protocols.tls.key_schedule import KeySchedule
 from samson.core.base_object import BaseObject
 from samson.utilities.bytes import Bytes
+from samson.utilities.runtime import RUNTIME
+from samson.utilities.exceptions import InvalidMACException
 from samson.macs.hmac import HMAC
 
 import logging
@@ -145,31 +147,23 @@ class TLSState(BaseObject):
         )
 
         self.sent_messages.append(handshake)
-        self.write_seq_num += 1
+        # self.write_seq_num += 1
         self.key_schedule.process_psk(self.calculate_transcript_hash())
 
         return tls_record
-    
 
 
-    def create_application_data(self, content_type: ContentType, data: bytes):
-        inner_plaintext = TLSInnerPlaintext(
-            content=data,
-            type=content_type,
-            zeros=[]
-        )
 
-        tls_data = inner_plaintext.serialize()
-
-        client_write_key, client_write_iv = self.get_traffic_key(KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET)
+    def encrypt_application_data(self, secret: bytes, inner_plaintext: TLSInnerPlaintext):
+        client_write_key, client_write_iv = self.get_traffic_key(secret)
 
         # TODO: How to calculate this for all ciphersuites?
-        additional_data = ContentType.application_data.serialize() + ProtocolVersion.TLSv12.serialize() + Bytes(len(tls_data) + 16).zfill(2)
+        additional_data = ContentType.application_data.serialize() + ProtocolVersion.TLSv12.serialize() + Bytes(inner_plaintext.get_data_length() + 17).zfill(2)
 
         encrypted_record = self.config.ciphersuite.encrypt(
             key=client_write_key,
             nonce=client_write_iv ^ Bytes(self.write_seq_num).zfill(12),
-            data=tls_data,
+            data=inner_plaintext.serialize(),
             aad=additional_data
         )
 
@@ -180,6 +174,53 @@ class TLSState(BaseObject):
         )
 
         return ciphertext
+
+
+
+    def psk_client_hello(self, client_hello: ClientHello, psk_identities: 'List[PSKIdentity]'):
+        # We create a new ClientHello from a template and add our PSK with a canary
+        psk_hello    = client_hello.deepcopy()
+        psk_ext_data = PreSharedKeyExtensionClient(
+            offered_psks=OfferedPsks(
+                identities=psk_identities,
+                binders=[
+                    b'\xff'*self.config.ciphersuite.length for _ in range(len(psk_identities))
+                ]
+            )
+        )
+
+        psk_ext = Extension(extension_type=ExtensionType.pre_shared_key, extension_data=S2.Opaque[PreSharedKeyExtensionClient](psk_ext_data))
+
+        psk_hello.extensions.val.val.append(psk_ext)
+        psk_total_length = self.config.ciphersuite.length * len(psk_identities)
+
+        handshake = Handshake(
+            msg_type=HandshakeType.client_hello,
+            message=S3.Opaque[ClientHello](psk_hello)
+        )
+
+
+        # Truncate and check
+        hello_prefix        = handshake.serialize()
+        hello_prefix, check = hello_prefix[:-(psk_total_length+3)], hello_prefix[-psk_total_length:]
+        assert check == b'\xff'*psk_total_length
+
+        key         = self.config.ciphersuite.derive_secret(self.key_schedule[KeySchedule.BINDER_KEY], b'finished', b'')
+        hmac        = HMAC(key, self.config.ciphersuite.hash_obj)
+        verify_data = hmac.generate(self.config.ciphersuite.hash_obj.hash(hello_prefix))
+
+        # Rebuild it with the binder
+        psk_hello = client_hello.deepcopy()
+        psk_ext_data.offered_psks.binders.val.val = [S1.Bytes(bytes(verify_data))]
+        psk_ext = Extension(extension_type=ExtensionType.pre_shared_key, extension_data=S2.Opaque[PreSharedKeyExtensionClient](psk_ext_data))
+        psk_hello.extensions.val.val.append(psk_ext)
+
+        handshake = Handshake(
+            msg_type=HandshakeType.client_hello,
+            message=S3.Opaque[ClientHello](psk_hello)
+        )
+
+        return handshake
 
 
 
@@ -194,8 +235,28 @@ class TLSState(BaseObject):
         return handshake
 
 
-    def decrypt_server_application_data(self, ciphertext: TLSPlaintext):
-        server_write_key, server_write_iv = self.get_traffic_key(self.key_schedule[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET])
+
+    def verify_finished(self, finished: Finished):
+        hmac = HMAC(self.key_schedule[KeySchedule.FINISHED], self.config.ciphersuite.hash_obj)
+        calculated_hash = hmac.generate(self.calculate_transcript_hash())
+
+        if not RUNTIME.compare_bytes(calculated_hash, finished.verify_data.val):
+            raise InvalidMACException
+
+
+
+    def get_psk_from_ticket(self, ticket: 'NewSessionTicket'):
+        return self.config.ciphersuite.hkdf_expand_label(
+            secret=self.key_schedule[KeySchedule.RESUMPTION_MASTER_SECRET],
+            label=b'resumption',
+            context=ticket.ticket_nonce.val,
+            length=self.config.ciphersuite.length
+        )
+
+
+
+    def decrypt_application_data(self, secret: bytes, ciphertext: TLSPlaintext):
+        server_write_key, server_write_iv = self.get_traffic_key(secret)
 
         encrypted_data  = ciphertext.fragment.val.val
         additional_data = ContentType.application_data.serialize() + ProtocolVersion.TLSv12.serialize() + Bytes(len(encrypted_data)).zfill(2)
@@ -207,7 +268,7 @@ class TLSState(BaseObject):
             aad=additional_data
         )
 
-        return decrypted_record
+        return TLSInnerPlaintext._deserialize(decrypted_record)[1]
 
 
 

@@ -25,7 +25,7 @@ class JWKEdDSAPublicKey(JWKBase):
 
         Parameters:
             buffer (bytes): Buffer to check.
-        
+
         Returns:
             bool: Whether or not `buffer` is the correct format.
         """
@@ -47,7 +47,7 @@ class JWKEdDSAPublicKey(JWKBase):
 
         Parameters:
             eddsa_key (EdDSA): Key to format.
-        
+
         Returns:
             dict: JWK dict with public parameters.
         """
@@ -66,7 +66,7 @@ class JWKEdDSAPublicKey(JWKBase):
 
         Parameters:
             eddsa_key (EdDSA): EdDSA key to encode.
-        
+
         Returns:
             str: JWK JSON string.
         """
@@ -81,7 +81,7 @@ class JWKEdDSAPublicKey(JWKBase):
 
         Parameters:
             buffer (bytes/str): JWK JSON string.
-        
+
         Returns:
             EdDSA: EdDSA object.
         """

@@ -39,9 +39,9 @@ class Ciphersuite(BaseObject):
         return self.hkdf_expand_label(secret, label, transcript_hash, self.length)
 
 
-    def encrypt(self, key, nonce, data, aad, verify=True):
+    def encrypt(self, key, nonce, data, aad):
         cipher = self.cipher_cls(key)
-        return cipher.encrypt(nonce, data, aad, verify)
+        return cipher.encrypt(nonce, data, aad)
 
     def decrypt(self, key, nonce, data, aad, verify=True):
         cipher = self.cipher_cls(key)

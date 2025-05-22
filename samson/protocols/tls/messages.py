@@ -34,7 +34,11 @@ class TypeSelector(BaseObject):
 
     def register(self, type_spec):
         def _wrapper(ext):
-            self.type_lut[type_spec] = self.wrapper_cls[ext]
+            if self.wrapper_cls:
+                self.type_lut[type_spec] = self.wrapper_cls[ext]
+            else:
+                self.type_lut[type_spec] = ext
+
             return ext
 
         return _wrapper
@@ -48,8 +52,7 @@ class TypeSelector(BaseObject):
 EXT = TypeSelector(S2.Opaque, 'extension_type')
 REC = TypeSelector(S2.Opaque, 'type')
 HS  = TypeSelector(S3.Opaque, 'msg_type', default=S3.Bytes)
-
-
+TIP = TypeSelector(None, 'type')
 
 #######################
 # B.4.  Cipher Suites #
@@ -197,16 +200,62 @@ class TLSPlaintext(S2):
     fragment: S2.Selector[REC.selector]
 
 
+
 class TLSInnerPlaintext(S2):
-    content: S2.Bytes
+    content: S2.GreedyList[TIP.selector]
     type: ContentType
-    zeros: S1_make_tls_list(S1.UInt8)
+    pad_len: int
+
+    def __init__(self, content, type, pad_len):
+        self.content = content
+        self.type    = type
+        self.pad_len = pad_len
+
+
+    def serialize(self):
+        return b''.join([item.serialize() for item in self.content]) + self.type.serialize() + (b'\x00' * self.pad_len)
+
+
+    def get_data_length(self):
+        return len(b''.join([item.serialize() for item in self.content]))
+
+
+    @classmethod
+    def _deserialize(cls, data, state=None):
+        pad_len = 0
+        for i in range(len(data)-1,-1,-1):
+            if data[i]:
+                break
+
+            pad_len += 1
+
+
+        # We're explicit with the length computation here rather than using
+        # negative indices. Otherwise, zero would break it 
+        unpadded_data = data[:len(data)-pad_len]
+
+        _, content_type = ContentType.deserialize(Bytes(unpadded_data[-1]))
+        content_cls = TIP.selector(cls, {'type': content_type})
+
+        items     = []
+        left_over = unpadded_data[:-1]
+        while left_over:
+            left_over, content = content_cls.deserialize(left_over)
+            items.append(content)
+
+        return left_over, TLSInnerPlaintext(content=items, type=content_type, pad_len=pad_len)
+
 
 
 class TLSCiphertext(S2):
     opaque_type: ContentType
     legacy_record_version: ProtocolVersion
     encrypted_record: S2.Bytes
+
+
+@TIP.register(ContentType.application_data)
+class ApplicationData(S2.GreedyBytes):
+    pass
 
 
 ######################
@@ -301,6 +350,7 @@ class AlertDescription(S1.Enum[S1.UInt8]):
 
 
 @REC.register(ContentType.alert)
+@TIP.register(ContentType.alert)
 class Alert(S2):
     level: AlertLevel
     description: AlertDescription
@@ -358,6 +408,7 @@ class HandshakeType(S1.Enum[S1.UInt8]):
 # } Handshake;
 
 @REC.register(ContentType.handshake)
+@TIP.register(ContentType.handshake)
 class Handshake(S3):
     msg_type: HandshakeType
     message: S3.Selector[HS.selector]
@@ -639,9 +690,16 @@ class PskKeyExchangeModes(S2):
 #     };
 # } EarlyDataIndication;
 
+def _early_data_selector(cls, state):
+    if state['parent_state']['parent_state']['parent_state']['parent_state']['msg_type'] == HandshakeType.new_session_ticket:
+        return S2.UInt32
+    else:
+        return S2.Null
+
+
 @EXT.register(ExtensionType.early_data)
 class EarlyDataIndication(S2):
-    max_early_data_size: S2.Depends[S2.UInt16, lambda context: True, S2.Null()]
+    max_early_data_size: S2.Selector[_early_data_selector]
 
 
 # struct {
@@ -989,7 +1047,6 @@ class CertificateVerify(S2):
 @HS.register(HandshakeType.finished)
 class Finished(S2):
     verify_data: S2.GreedyBytes
-
 
 
 ################################
@@ -1741,6 +1798,7 @@ class DelegatedCredential(S2):
 # } ChangeCipherSpec;
 
 @REC.register(ContentType.change_cipher_spec)
+@TIP.register(ContentType.change_cipher_spec)
 class ChangeCipherSpec(S2.Enum[S2.UInt8]):
     change_cipher_spec = 1
 
