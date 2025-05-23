@@ -22,7 +22,8 @@ class KeySchedule(BaseObject):
     CLIENT_APPLICATION_TRAFFIC_SECRET = b"client application secret"
     SERVER_APPLICATION_TRAFFIC_SECRET = b"server application secret"
 
-    FINISHED = b'finished'
+    SERVER_FINISHED = b'server finished'
+    CLIENT_FINISHED = b'client finished'
 
 
     def __init__(self, ciphersuite: 'Ciphersuite', psk: bytes=None):
@@ -118,7 +119,8 @@ class KeySchedule(BaseObject):
             transcript_hash=transcript_hash
         )
 
-        self.keys[KeySchedule.FINISHED] = self.ciphersuite.derive_secret(self[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET], b'finished', b'')
+        self.keys[KeySchedule.SERVER_FINISHED] = self.ciphersuite.derive_secret(self[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET], b'finished', b'')
+        self.keys[KeySchedule.CLIENT_FINISHED] = self.ciphersuite.derive_secret(self[KeySchedule.CLIENT_HANDSHAKE_TRAFFIC_SECRET], b'finished', b'')
 
 
 

@@ -36,7 +36,6 @@ client_hello      = TLSPlaintext.deserialize(client_hello_data)[1]
 assert client_hello.serialize() == client_hello_data
 
 server_state.sent_messages.append(client_hello.fragment.val.val)
-# state.write_seq_num += 1
 
 server_state.key_schedule.process_early_secret(server_state.calculate_transcript_hash())
 assert server_state.key_schedule[KeySchedule.EARLY_SECRET] == Bytes(0x33ad0a1c607ec03b09e6cd9893680ce210adf300aa1f2660e1b22e10f170f92a)
@@ -79,7 +78,7 @@ assert cert_verify.serialize() == cert_verify_bytes
 server_state.sent_messages.append(cert_verify)
 
 
-server_finished = server_state.finished()
+server_finished = server_state.finished(server_state.key_schedule[KeySchedule.SERVER_FINISHED])
 assert server_finished.serialize() == Bytes(0x140000209b9b141d906337fbd2cbdce71df4deda4ab42c309572cb7fffee5454b78f0718)
 server_state.sent_messages.append(server_finished)
 

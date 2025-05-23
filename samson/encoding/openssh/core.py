@@ -182,11 +182,11 @@ def key_class_selector(cls, state):
         raise ValueError("Key type not supported")
 
 
-def pub_key_class_selector(cls, state):
+def pub_key_class_selector(cls, state, data):
     return key_class_selector(cls, state)[0]
 
 
-def priv_key_class_selector(cls, state):
+def priv_key_class_selector(cls, state, data):
     return key_class_selector(cls, state)[1]
 
 
@@ -234,7 +234,7 @@ class KDFParams(S):
     rounds: S.UInt32
 
 
-def optional_kdf_params(cls, state):
+def optional_kdf_params(cls, state, data):
     if state['kdf'] != b'none':
         return KDFParams
     else:
@@ -305,7 +305,7 @@ class OpenSSHPrivateHeader(S):
 
 
 
-def encrypted_key_selector(cls, state):
+def encrypted_key_selector(cls, state, data):
     if state['header'].kdf.val == b'none':
         return S.SizedList[PublicPrivatePair]
     else:

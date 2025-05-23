@@ -160,10 +160,13 @@ class SizedSerializable(BaseObject):
     def bind_signature(self, *args, **kwargs):
         sig_dict = {k:getattr(self.__class__, k, None) for k in self.__annotations__.keys()}
         sig      = reconstruct(sig_dict)
-        bound    = sig.bind(*args, **kwargs)
-        bound.apply_defaults()
-        return bound
 
+        try:
+            bound = sig.bind(*args, **kwargs)
+            bound.apply_defaults()
+            return bound
+        except TypeError as e:
+            raise TypeError(e, self, sig, args, kwargs)
 
 
     @classmethod
@@ -407,7 +410,7 @@ class SizedSerializable(BaseObject):
 
             @classmethod
             def _deserialize(cls, data, state=None):
-                left_over, result = cls.SELECTOR(cls, state)._deserialize(data, state)
+                left_over, result = cls.SELECTOR(cls, state, data)._deserialize(data, state)
                 return left_over, result#cls(result)
 
 

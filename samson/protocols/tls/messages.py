@@ -10,13 +10,25 @@ S3 = Serializable[3]
 def _make_tls_list(S):
     def make_tls_list_inner(type):
         return S.Opaque[S.GreedyList[type]]
-    
+
     return make_tls_list_inner
 
 
 S1_make_tls_list = _make_tls_list(S1)
 S2_make_tls_list = _make_tls_list(S2)
 S3_make_tls_list = _make_tls_list(S3)
+
+
+def find_padding_length(data):
+    pad_len = 0
+    for i in range(len(data)-1,-1,-1):
+        if data[i]:
+            break
+
+        pad_len += 1
+    
+    return pad_len
+
 
 
 
@@ -44,7 +56,7 @@ class TypeSelector(BaseObject):
         return _wrapper
 
 
-    def selector(self, cls, state):
+    def selector(self, cls, state, data):
         return self.type_lut.get(state[self.state_key], self.default)
 
 
@@ -53,6 +65,35 @@ EXT = TypeSelector(S2.Opaque, 'extension_type')
 REC = TypeSelector(S2.Opaque, 'type')
 HS  = TypeSelector(S3.Opaque, 'msg_type', default=S3.Bytes)
 TIP = TypeSelector(None, 'type')
+
+
+class TLSList(S2.BaseList, S2.Subtypable):
+    val: list
+
+    
+    def serialize(self):
+        data = b''
+        for v in self.val:
+            data += v.serialize()
+        
+        return self.pack_len(data) + data
+
+
+    @classmethod
+    def _deserialize(cls, data, state=None):
+        objs = []
+        data, length = cls.unpack_len(data)
+
+        total_length = 0
+        while total_length < length:
+            left_over, obj = cls.SUBTYPE.deserialize(data, {'parent_state': state})
+            objs.append(obj)
+
+            total_length += len(data) - len(left_over)
+            data = left_over
+
+        return data, cls(objs)
+
 
 #######################
 # B.4.  Cipher Suites #
@@ -218,24 +259,18 @@ class TLSInnerPlaintext(S2):
 
     def get_data_length(self):
         return len(b''.join([item.serialize() for item in self.content]))
-
+    
 
     @classmethod
     def _deserialize(cls, data, state=None):
-        pad_len = 0
-        for i in range(len(data)-1,-1,-1):
-            if data[i]:
-                break
-
-            pad_len += 1
-
+        pad_len = find_padding_length(data)
 
         # We're explicit with the length computation here rather than using
         # negative indices. Otherwise, zero would break it 
         unpadded_data = data[:len(data)-pad_len]
 
         _, content_type = ContentType.deserialize(Bytes(unpadded_data[-1]))
-        content_cls = TIP.selector(cls, {'type': content_type})
+        content_cls = TIP.selector(cls, {'type': content_type}, data)
 
         items     = []
         left_over = unpadded_data[:-1]
@@ -485,19 +520,27 @@ class ExtensionType(S2.Enum[S2.UInt16]):
     renegotiation_info = 65281
 
 
+def _nullable_ext_selector(cls, state, data):
+    if data[:2] == b'\x00\x00':
+        return S2.Opaque[S2.Null]
+    else:
+        return EXT.selector(cls, state, data)
+
 
 class Extension(S2):
     extension_type: ExtensionType
-    extension_data: S2.Selector[EXT.selector]
+    extension_data: S2.Selector[_nullable_ext_selector]
 
 
-def _server_ext_override(cls, state):
+def _server_ext_override(cls, state, data):
     if state['extension_type'] == ExtensionType.key_share:
         return S2.Opaque[KeyShareServerHello]
     elif state['extension_type'] == ExtensionType.supported_versions:
         return S2.Opaque[SupportedVersionsServer]
+    elif state['extension_type'] == ExtensionType.pre_shared_key:
+        return S2.Opaque[PreSharedKeyExtensionServer]
     else:
-        return EXT.selector(cls, state)
+        return _nullable_ext_selector(cls, state, data)
 
 
 class ServerExtension(S2):
@@ -690,7 +733,7 @@ class PskKeyExchangeModes(S2):
 #     };
 # } EarlyDataIndication;
 
-def _early_data_selector(cls, state):
+def _early_data_selector(cls, state, data):
     if state['parent_state']['parent_state']['parent_state']['parent_state']['msg_type'] == HandshakeType.new_session_ticket:
         return S2.UInt32
     else:
@@ -896,7 +939,7 @@ class PaddedGreedyList(S2.BaseList, metaclass=PaddedSubtypableMeta):
     pad_len: int
 
     def __init__(self, val=None, pad_len: int=0):
-        self.val = [] if val is None else val
+        self.val     = [] if val is None else val
         self.pad_len = pad_len
 
 
@@ -910,15 +953,22 @@ class PaddedGreedyList(S2.BaseList, metaclass=PaddedSubtypableMeta):
 
     @classmethod
     def _deserialize(cls, data, state=None):
-        objs    = []
+        objs      = []
+        # pad_len   = find_padding_length(data)
+        # left_over = data[:-pad_len]
+
         pad_len = 0
         while data:
             if not Bytes(data).int():
                 pad_len = len(data)
                 break
 
-            data, obj = cls.SUBTYPE.deserialize(data)
+            data, obj = cls.SUBTYPE.deserialize(data, {'parent_state': state})
             objs.append(obj)
+
+        # while left_over:
+        #     left_over, obj = cls.SUBTYPE.deserialize(left_over, {'parent_state': state})
+        #     objs.append(obj)
     
         return data, cls(objs, pad_len=pad_len)
 
@@ -1128,8 +1178,15 @@ class ServerName(S2):
 
 
 @EXT.register(ExtensionType.server_name)
-class ServerNameList(S2):
-    server_name_list: S2_make_tls_list(ServerName)
+class ServerNameList(TLSList[ServerName]):
+    pass
+
+# EXT.register(ExtensionType.server_name)(S2.GreedyList[ServerName])
+
+# @EXT.register(ExtensionType.server_name)
+# class ServerNameList(S2):
+#     server_name_list: TLSList[ServerName]
+    #server_name_list: S2_make_tls_list(ServerName)
 
 
 # enum{
@@ -1702,7 +1759,7 @@ class ECHOuterCH(S2):
     payload: S2.Bytes
 
 
-def ech_ch_selector(cls, ctx):
+def ech_ch_selector(cls, ctx, data):
     if ctx['type'] == ECHClientHelloType.outer:
         return ECHOuterCH
     else:

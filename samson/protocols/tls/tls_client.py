@@ -224,8 +224,8 @@ class TLSState(BaseObject):
 
 
 
-    def finished(self):
-        hmac = HMAC(self.key_schedule[KeySchedule.FINISHED], self.config.ciphersuite.hash_obj)
+    def finished(self, finished_key: bytes):
+        hmac = HMAC(finished_key, self.config.ciphersuite.hash_obj)
         verify_data = hmac.generate(self.calculate_transcript_hash())
 
         handshake = Handshake(
@@ -236,8 +236,8 @@ class TLSState(BaseObject):
 
 
 
-    def verify_finished(self, finished: Finished):
-        hmac = HMAC(self.key_schedule[KeySchedule.FINISHED], self.config.ciphersuite.hash_obj)
+    def verify_finished(self, finished_key: bytes, finished: Finished):
+        hmac = HMAC(finished_key, self.config.ciphersuite.hash_obj)
         calculated_hash = hmac.generate(self.calculate_transcript_hash())
 
         if not RUNTIME.compare_bytes(calculated_hash, finished.verify_data.val):
