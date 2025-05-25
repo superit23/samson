@@ -43,6 +43,7 @@ class Ciphersuite(BaseObject):
         cipher = self.cipher_cls(key)
         return cipher.encrypt(nonce, data, aad)
 
+
     def decrypt(self, key, nonce, data, aad, verify=True):
         cipher = self.cipher_cls(key)
         return cipher.decrypt(nonce, data, aad, verify)

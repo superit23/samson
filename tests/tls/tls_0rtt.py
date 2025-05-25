@@ -66,8 +66,8 @@ assert psk_hello.serialize() == client_hello_bytes
 
 
 
-client_state.sent_messages.append(client_hello)
-client_state.key_schedule.process_early_secret(client_state.calculate_transcript_hash())
+client_state.transcript.append(client_hello)
+client_state.key_schedule.process_early_secret(client_state.transcript.hash())
 assert client_state.key_schedule[KeySchedule.CLIENT_EARLY_TRAFFIC_SECRET] == Bytes(0x3fbbe6a60deb66c30a32795aba0eff7eaa10105586e7be5c09678d63b6caab62)
 assert client_state.key_schedule[KeySchedule.EARLY_EXPORTER_MASTER_SECRET] == Bytes(0xb2026866610937d7423e5be90862ccf24c0e6091186d34f812089ff5be2ef7df)
 
@@ -93,8 +93,8 @@ assert server_state.key_schedule[KeySchedule.EARLY_SECRET] == Bytes(0x9b2188e9b2
 assert server_state.key_schedule[KeySchedule.BINDER_KEY] == Bytes(0x69fe131a3bbad5d63c64eebcc30e395b9d8107726a13d074e389dbc8a4e47256)
 
 
-server_state.sent_messages.append(client_hello)
-server_state.key_schedule.process_early_secret(server_state.calculate_transcript_hash())
+server_state.transcript.append(client_hello)
+server_state.key_schedule.process_early_secret(server_state.transcript.hash())
 assert server_state.key_schedule[KeySchedule.CLIENT_EARLY_TRAFFIC_SECRET] == Bytes(0x3fbbe6a60deb66c30a32795aba0eff7eaa10105586e7be5c09678d63b6caab62)
 assert server_state.key_schedule[KeySchedule.EARLY_EXPORTER_MASTER_SECRET] == Bytes(0xb2026866610937d7423e5be90862ccf24c0e6091186d34f812089ff5be2ef7df)
 
@@ -104,11 +104,11 @@ server_hello       = Handshake.deserialize(server_hello_bytes)[1]
 assert server_hello.serialize() == server_hello_bytes
 
 
-server_state.sent_messages.append(server_hello)
+server_state.transcript.append(server_hello)
 
 
 shared_secret = Bytes(0xf44194756ff9ec9d25180635d66ea6824c6ab3bf179977be37f723570e7ccb2e)
-server_state.key_schedule.process_handshake_secret(shared_secret, server_state.calculate_transcript_hash())
+server_state.key_schedule.process_handshake_secret(shared_secret, server_state.transcript.hash())
 assert server_state.key_schedule[KeySchedule.HANDSHAKE_SECRET] == Bytes(0x005cb112fd8eb4ccc623bb88a07c64b3ede1605363fc7d0df8c7ce4ff0fb4ae6).zfill(32)
 assert server_state.key_schedule[KeySchedule.CLIENT_HANDSHAKE_TRAFFIC_SECRET] == Bytes(0x2faac08f851d35fea3604fcb4de82dc62c9b164a70974d0462e27f1ab278700f)
 assert server_state.key_schedule[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET] == Bytes(0xfe927ae271312e8bf0275b581c54eef020450dc4ecffaa05a1a35d27518e7803)
@@ -118,13 +118,13 @@ enc_extensions_bytes = Bytes(0x080000280026000a00140012001d001700180019010001010
 enc_exts = Handshake.deserialize(enc_extensions_bytes)[1]
 assert enc_exts.serialize() == enc_extensions_bytes
 
-server_state.sent_messages.append(enc_exts)
+server_state.transcript.append(enc_exts)
 server_finished = server_state.finished(server_state.key_schedule[KeySchedule.SERVER_FINISHED])
-server_state.sent_messages.append(server_finished)
+server_state.transcript.append(server_finished)
 
 assert server_finished.serialize() == Bytes(0x1400002048d3e0e1b3d907c6acff145e16090388c77b05c050b634ab1a88bbd0dd1a34b2)
 
-server_state.key_schedule.process_master_secret(server_state.calculate_transcript_hash())
+server_state.key_schedule.process_master_secret(server_state.transcript.hash())
 assert server_state.key_schedule[KeySchedule.MASTER_SECRET] == Bytes(0xe2d32d4ed66dd37897a0e80c84107503ce58bf8aad4cb55a5002d77ecb890ece).zfill(32)
 assert server_state.key_schedule[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0] == Bytes(0x2abbf2b8e381d23dbebe1dd2a7d16a8bf484cb4950d23fb7fb7fa8547062d9a1)
 assert server_state.key_schedule[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET_0] == Bytes(0xcc21f1bf8feb7dd5fa505bd9c4b468a9984d554a993dc49e6d285598fb672691)
@@ -143,18 +143,18 @@ assert reenc_server_exts_finished.serialize() == enc_server_exts_finshed_bytes
 # CLIENT PROCESSING #
 #####################
 
-client_state.sent_messages.append(server_hello)
+client_state.transcript.append(server_hello)
 
-client_state.key_schedule.process_handshake_secret(shared_secret, client_state.calculate_transcript_hash())
+client_state.key_schedule.process_handshake_secret(shared_secret, client_state.transcript.hash())
 assert client_state.key_schedule[KeySchedule.HANDSHAKE_SECRET] == Bytes(0x005cb112fd8eb4ccc623bb88a07c64b3ede1605363fc7d0df8c7ce4ff0fb4ae6).zfill(32)
 assert client_state.key_schedule[KeySchedule.CLIENT_HANDSHAKE_TRAFFIC_SECRET] == Bytes(0x2faac08f851d35fea3604fcb4de82dc62c9b164a70974d0462e27f1ab278700f)
 assert client_state.key_schedule[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET] == Bytes(0xfe927ae271312e8bf0275b581c54eef020450dc4ecffaa05a1a35d27518e7803)
 assert client_state.get_traffic_key(client_state.key_schedule[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET]) == (Bytes(0x27c6bdc0a3dcea39a47326d79bc9e4ee), Bytes(0x9569ecdd4d0536705e9ef725))
 
-client_state.sent_messages.append(enc_exts)
-client_state.sent_messages.append(server_finished)
+client_state.transcript.append(enc_exts)
+client_state.transcript.append(server_finished)
 
-client_state.key_schedule.process_master_secret(client_state.calculate_transcript_hash())
+client_state.key_schedule.process_master_secret(client_state.transcript.hash())
 assert client_state.key_schedule[KeySchedule.MASTER_SECRET] == Bytes(0xe2d32d4ed66dd37897a0e80c84107503ce58bf8aad4cb55a5002d77ecb890ece).zfill(32)
 assert client_state.key_schedule[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0] == Bytes(0x2abbf2b8e381d23dbebe1dd2a7d16a8bf484cb4950d23fb7fb7fa8547062d9a1)
 assert client_state.key_schedule[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET_0] == Bytes(0xcc21f1bf8feb7dd5fa505bd9c4b468a9984d554a993dc49e6d285598fb672691)
@@ -171,7 +171,7 @@ enc_early_data_bytes    = Bytes(0x1703030015aca6fc944841298df99593725f9bf9754429
 enc_early_data          = TLSPlaintext.deserialize(enc_early_data_bytes)[1]
 assert enc_early_data.serialize() == enc_early_data_bytes
 
-client_state.sent_messages.append(client_early_data)
+client_state.transcript.append(client_early_data)
 
 client_finished_bytes = Bytes(0x140000207230a9c952c25cd6138fc5e6628308c41c5335dd81b9f96bcea50fd32bda416d)
 client_finished = client_state.finished(client_state.key_schedule[KeySchedule.CLIENT_FINISHED])
@@ -184,8 +184,8 @@ reenc_client_finished     = server_state.encrypt_application_data(server_state.k
 assert reenc_client_finished.serialize() == enc_client_finished_bytes
 
 
-client_state.sent_messages.append(client_finished)
-client_state.key_schedule.process_resumption_secret(client_state.calculate_transcript_hash())
+client_state.transcript.append(client_finished)
+client_state.key_schedule.process_resumption_secret(client_state.transcript.hash())
 
 assert client_state.get_traffic_key(client_state.key_schedule[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0]) == (Bytes(0x3cf122f301c6358ca7989553250efd72), Bytes(0xab1aec26aa78b8fc1176b9ac))
 assert client_state.key_schedule[KeySchedule.RESUMPTION_MASTER_SECRET] == Bytes(0x5e95bdf1f89005ea2e9aa0ba85e728e3c19c5fe0c699e3f5bee59faebd0b5406)
@@ -198,7 +198,6 @@ assert client_state.key_schedule[KeySchedule.RESUMPTION_MASTER_SECRET] == Bytes(
 def run_encrypted_gauntlet(state, key: bytes, enc_data_bytes: bytes):
     enc_data = TLSPlaintext.deserialize(enc_data_bytes)[1]
     assert enc_data.serialize() == enc_data_bytes
-    print("HELLO")
 
     dec_data   = state.decrypt_application_data(key, enc_data)
     reenc_data = state.encrypt_application_data(key, dec_data)

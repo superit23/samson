@@ -1,9 +1,10 @@
 from enum import Enum, auto
 from queue import Queue
 from samson.protocols.tls.fsm import FSM
-from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext, ContentType, Finished, PskIdentity, PreSharedKeyExtensionClient, OfferedPsks
+from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext, ContentType, Finished, PskIdentity, PreSharedKeyExtensionClient, OfferedPsks, HELLO_RETRY_MAGIC
 from samson.protocols.tls.channel import Channel
 from samson.protocols.tls.key_schedule import KeySchedule
+from samson.protocols.tls.transcript import Transcript
 from samson.core.base_object import BaseObject
 from samson.utilities.bytes import Bytes
 from samson.utilities.runtime import RUNTIME
@@ -14,13 +15,11 @@ import logging
 log = logging.getLogger(__name__)
 
 
-HELLO_RETRY_MAGIC = b'\xcf!\xadt\xe5\x9aa\x11\xbe\x1d\x8c\x02\x1ee\xb8\x91\xc2\xa2\x11\x16z\xbb\x8c^\x07\x9e\t\xe2\xc8\xa83\x9c'
-
 class TLSProtocolError(Exception):
     pass
 
 class TLSHSCState(Enum):
-    START = auto()
+    START          = auto()
     WAIT_FOR_HELLO = auto()
     WAIT_FOR_REPLY = auto()
     RECV_DATA      = auto()
@@ -47,7 +46,7 @@ class TLSConfiguration(BaseObject):
 class TLSState(BaseObject):
     def __init__(self, config: TLSConfiguration):
         self.config        = config
-        self.sent_messages = []
+        self.transcript    = Transcript(config.ciphersuite.hash_obj)
         self.key_schedule  = KeySchedule(self.config.ciphersuite, self.config.psk)
 
         self.read_seq_num  = 0
@@ -62,15 +61,8 @@ class TLSState(BaseObject):
     def process_key_share(self, ext_data: bytes):
         server_key  = self.config.kex.G.curve.decode_point(ext_data)
         derived_key = self.config.kex.derive_key(server_key)
-        self.key_schedule.process_shared_secret(derived_key, self.calculate_transcript_hash())
+        self.key_schedule.process_shared_secret(derived_key, self.transcript.hash())
 
-
-
-    def calculate_transcript_hash(self):
-        # https://datatracker.ietf.org/doc/html/rfc8446#section-4.4.1
-        to_hash = b''.join([msg.serialize() for msg in self.sent_messages])
-        return self.config.ciphersuite.hash_obj.hash(to_hash)
-    
 
 
     def update_traffic_keys(self):
@@ -146,9 +138,9 @@ class TLSState(BaseObject):
             fragment=S2.Bytes(handshake)
         )
 
-        self.sent_messages.append(handshake)
+        self.transcript.append(handshake)
         # self.write_seq_num += 1
-        self.key_schedule.process_psk(self.calculate_transcript_hash())
+        self.key_schedule.process_psk(self.transcript.hash())
 
         return tls_record
 
@@ -226,7 +218,7 @@ class TLSState(BaseObject):
 
     def finished(self, finished_key: bytes):
         hmac = HMAC(finished_key, self.config.ciphersuite.hash_obj)
-        verify_data = hmac.generate(self.calculate_transcript_hash())
+        verify_data = hmac.generate(self.transcript.hash())
 
         handshake = Handshake(
             msg_type=HandshakeType.finished,
@@ -238,7 +230,7 @@ class TLSState(BaseObject):
 
     def verify_finished(self, finished_key: bytes, finished: Finished):
         hmac = HMAC(finished_key, self.config.ciphersuite.hash_obj)
-        calculated_hash = hmac.generate(self.calculate_transcript_hash())
+        calculated_hash = hmac.generate(self.transcript.hash())
 
         if not RUNTIME.compare_bytes(calculated_hash, finished.verify_data.val):
             raise InvalidMACException
@@ -277,7 +269,6 @@ class TLSHandshakeClientFSM(FSM):
         super().__init__()
         self.state         = TLSState(config)
         self.reply_queue   = Queue()
-        self.sent_messages = []
         self.channel       = channel
 
 
@@ -299,7 +290,7 @@ class TLSHandshakeClientFSM(FSM):
         reply     = self.reply_queue.get()
         handshake = reply.fragment.val.val
 
-        self.state.sent_messages.append(handshake)
+        self.state.transcript.append(handshake)
         self.state.read_seq_num += 1
 
         log.info(f"WAIT_FOR_HELLO: Received reply of {handshake.msg_type}")
@@ -327,7 +318,7 @@ class TLSHandshakeClientFSM(FSM):
     @FSM.transition(TLSHSCState.RECV_DATA)
     def recv_data(self):
         reply = self.reply_queue.get()
-        self.sent_messages.append(reply)
+        self.state.transcript.append(reply)
         self.state.read_seq_num += 1
 
         log.info(f"RECV_DATA: Received reply of {reply.type}")

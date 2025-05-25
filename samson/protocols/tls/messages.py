@@ -2,6 +2,9 @@ from samson.auxiliary.serialization import Serializable
 from samson.core.base_object import BaseObject
 from samson.utilities.bytes import Bytes
 
+
+HELLO_RETRY_MAGIC = b'\xcf!\xadt\xe5\x9aa\x11\xbe\x1d\x8c\x02\x1ee\xb8\x91\xc2\xa2\x11\x16z\xbb\x8c^\x07\x9e\t\xe2\xc8\xa83\x9c'
+
 # https://datatracker.ietf.org/doc/html/rfc8446#section-4
 S1 = Serializable[1]
 S2 = Serializable[2]
@@ -534,7 +537,10 @@ class Extension(S2):
 
 def _server_ext_override(cls, state, data):
     if state['extension_type'] == ExtensionType.key_share:
-        return S2.Opaque[KeyShareServerHello]
+        if state['parent_state']['parent_state']['random'] == HELLO_RETRY_MAGIC:
+            return S2.Opaque[KeyShareHelloRetryRequest]
+        else:
+            return S2.Opaque[KeyShareServerHello]
     elif state['extension_type'] == ExtensionType.supported_versions:
         return S2.Opaque[SupportedVersionsServer]
     elif state['extension_type'] == ExtensionType.pre_shared_key:
@@ -819,7 +825,7 @@ class SupportedVersionsServer(S1):
 
 @EXT.register(ExtensionType.cookie)
 class Cookie(S2):
-    cookie: S2.Opaque[S2.Bytes]
+    cookie: S2.Bytes
 
 
 ###########################################
