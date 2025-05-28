@@ -1,7 +1,7 @@
 from enum import Enum, auto
 from queue import Queue
 from samson.protocols.tls.fsm import FSM
-from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext, ContentType, Finished, PskIdentity, PreSharedKeyExtensionClient, OfferedPsks, HELLO_RETRY_MAGIC
+from samson.protocols.tls.messages import HandshakeType, AlertDescription, ClientHello, ProtocolVersion, TLSCipherSuite, ExtensionType, EXT, NamedGroup, ECPointFormat, KeyShareEntry, SignatureScheme, NameType, ServerName, Extension, TLSPlaintext, ContentType, Handshake, HandshakeType, S1, S2, S3, TLSInnerPlaintext, TLSCiphertext, ContentType, Finished, PskIdentity, PreSharedKeyExtensionClient, OfferedPsks, HELLO_RETRY_MAGIC, TLSPlaintextHeader
 from samson.protocols.tls.channel import Channel
 from samson.protocols.tls.key_schedule import KeySchedule
 from samson.protocols.tls.transcript import Transcript
@@ -11,18 +11,19 @@ from samson.utilities.runtime import RUNTIME
 from samson.utilities.exceptions import InvalidMACException
 from samson.macs.hmac import HMAC
 
-import logging
-log = logging.getLogger(__name__)
-
 
 class TLSProtocolError(Exception):
     pass
 
 class TLSHSCState(Enum):
-    START          = auto()
-    WAIT_FOR_HELLO = auto()
-    WAIT_FOR_REPLY = auto()
-    RECV_DATA      = auto()
+    START         = auto()
+    WAIT_SH       = auto()
+    WAIT_EE       = auto()
+    WAIT_CERT_CR  = auto()
+    WAIT_CERT     = auto()
+    WAIT_CV       = auto()
+    WAIT_FINISHED = auto()
+    CONNECTED     = auto()
 
 
 class TLSServerReply(Enum):
@@ -49,6 +50,8 @@ class TLSState(BaseObject):
         self.transcript    = Transcript(config.ciphersuite.hash_obj)
         self.key_schedule  = KeySchedule(self.config.ciphersuite, self.config.psk)
 
+        self.key_schedule.process_binder_secret()
+
         self.read_seq_num  = 0
         self.write_seq_num = 0
 
@@ -61,7 +64,7 @@ class TLSState(BaseObject):
     def process_key_share(self, ext_data: bytes):
         server_key  = self.config.kex.G.curve.decode_point(ext_data)
         derived_key = self.config.kex.derive_key(server_key)
-        self.key_schedule.process_shared_secret(derived_key, self.transcript.hash())
+        self.key_schedule.process_handshake_secret(derived_key, self.transcript.hash())
 
 
 
@@ -129,18 +132,14 @@ class TLSState(BaseObject):
 
         handshake = Handshake(
             msg_type=HandshakeType.client_hello,
-            message=S3.Bytes(client_hello)
+            message=S3.Opaque[ClientHello](client_hello)
         )
 
         tls_record = TLSPlaintext(
             type=ContentType.handshake,
             legacy_record_version=ProtocolVersion.TLSv12,
-            fragment=S2.Bytes(handshake)
+            fragment=S2.Opaque[Handshake](handshake)
         )
-
-        self.transcript.append(handshake)
-        # self.write_seq_num += 1
-        self.key_schedule.process_psk(self.transcript.hash())
 
         return tls_record
 
@@ -222,7 +221,7 @@ class TLSState(BaseObject):
 
         handshake = Handshake(
             msg_type=HandshakeType.finished,
-            message=S3.Bytes(Finished(verify_data))
+            message=S3.Opaque[Finished](Finished(verify_data))
         )
         return handshake
 
@@ -250,88 +249,226 @@ class TLSState(BaseObject):
     def decrypt_application_data(self, secret: bytes, ciphertext: TLSPlaintext):
         server_write_key, server_write_iv = self.get_traffic_key(secret)
 
-        encrypted_data  = ciphertext.fragment.val.val
-        additional_data = ContentType.application_data.serialize() + ProtocolVersion.TLSv12.serialize() + Bytes(len(encrypted_data)).zfill(2)
+        encrypted_data, header = TLSPlaintextHeader.deserialize(ciphertext.serialize())
 
         decrypted_record = self.config.ciphersuite.decrypt(
             key=server_write_key,
             nonce=server_write_iv ^ Bytes(self.read_seq_num).zfill(12),
             data=encrypted_data,
-            aad=additional_data
+            aad=header.serialize()
         )
 
         return TLSInnerPlaintext._deserialize(decrypted_record)[1]
 
 
 
+
+# A.1.  Client
+
+#                               START <----+
+#                Send ClientHello |        | Recv HelloRetryRequest
+#           [K_send = early data] |        |
+#                                 v        |
+#            /                 WAIT_SH ----+
+#            |                    | Recv ServerHello
+#            |                    | K_recv = handshake
+#        Can |                    V
+#       send |                 WAIT_EE
+#      early |                    | Recv EncryptedExtensions
+#       data |           +--------+--------+
+#            |     Using |                 | Using certificate
+#            |       PSK |                 v
+#            |           |            WAIT_CERT_CR
+#            |           |        Recv |       | Recv CertificateRequest
+#            |           | Certificate |       v
+#            |           |             |    WAIT_CERT
+#            |           |             |       | Recv Certificate
+#            |           |             v       v
+#            |           |              WAIT_CV
+#            |           |                 | Recv CertificateVerify
+#            |           +> WAIT_FINISHED <+
+#            |                  | Recv Finished
+#            \                  | [Send EndOfEarlyData]
+#                               | K_send = handshake
+#                               | [Send Certificate [+ CertificateVerify]]
+#     Can send                  | Send Finished
+#     app data   -->            | K_send = K_recv = application
+#     after here                v
+#                           CONNECTED
+
+
+
 class TLSHandshakeClientFSM(FSM):
     def __init__(self, config: TLSConfiguration, channel: Channel):
         super().__init__()
-        self.state         = TLSState(config)
-        self.reply_queue   = Queue()
-        self.channel       = channel
+        self.state       = TLSState(config)
+        self.reply_queue = Queue()
+        self.channel     = channel
+        self.read_key    = None
+        self.write_key   = None
 
+        self.application_data_queue = Queue()
+
+
+    def _recv_message(self):
+        reply = self.reply_queue.get()
+
+        if reply.type == ContentType.application_data:
+            tls_inner = self.state.decrypt_application_data(self.read_key, reply)
+
+            for content in tls_inner.content:
+                self.reply_queue.put(TLSPlaintext(
+                    type=tls_inner.type,
+                    legacy_record_version=reply.legacy_record_version,
+                    fragment=S2.Opaque[type(content)](content)
+                ))
+            
+            return self._recv_message()
+        
+        else:
+            return reply
+
+
+
+    def _recv_handshake(self, *expected_types, frame_idx=3):
+        reply     = self._recv_message()
+        handshake = reply.fragment.val.val
+
+        # TODO: Handle ChangeCipherSpec
+        if reply.type == ContentType.change_cipher_spec:
+            return self._recv_handshake(*expected_types, frame_idx=4)
+
+
+        if reply.type != ContentType.handshake:
+            raise TLSProtocolError(AlertDescription.unexpected_message, reply)
+
+        self.log_info(f"Received handshake reply of type {handshake.msg_type}", frame_idx=frame_idx)
+
+        if handshake.msg_type not in expected_types:
+            raise TLSProtocolError(AlertDescription.unexpected_message, handshake)
+
+
+        self.state.transcript.append(handshake)
+        self.log_debug(f'Transcript hash: {bytes(self.state.transcript.hash().hex())}', frame_idx=frame_idx)
+        return handshake
+    
+
+
+    def send_encrypted(self, tls_inner_plaintext):
+        tls_ciphertext = self.state.encrypt_application_data(self.write_key, tls_inner_plaintext)
+        self.channel.send(tls_ciphertext)
 
 
     @FSM.transition(TLSHSCState.START)
-    def initiate(self):
-        log.info("START: Sending hello")
+    def start(self):
+        self.log_info("Sending hello")
 
         tls_record = self.state.client_hello()
-        print(bytes(tls_record))
-        self.channel.send(bytes(tls_record))
+        self.channel.send(tls_record)
+
+        self.state.transcript.append(tls_record.fragment.val.val)
+        self.state.key_schedule.process_early_secret(self.state.transcript.hash())
+
         
-        return (TLSHSCState.WAIT_FOR_HELLO, (), {})
+        return (TLSHSCState.WAIT_SH, (), {})
 
 
 
-    @FSM.transition(TLSHSCState.WAIT_FOR_HELLO)
-    def wait_for_hello(self):
-        reply     = self.reply_queue.get()
-        handshake = reply.fragment.val.val
+    @FSM.transition(TLSHSCState.WAIT_SH)
+    def wait_sh(self):
+        handshake    = self._recv_handshake(HandshakeType.server_hello)
+        server_hello = handshake.message.val.val
 
-        self.state.transcript.append(handshake)
-        self.state.read_seq_num += 1
+        if server_hello.legacy_session_id_echo == HELLO_RETRY_MAGIC:
+            # TODO: Handle required changes
+            return (TLSHSCState.START, (), {})
 
-        log.info(f"WAIT_FOR_HELLO: Received reply of {handshake.msg_type}")
+        else:
+            extensions = server_hello.extensions.val.val
+            for ext in extensions:
+                if ext.extension_type == ExtensionType.key_share:
+                    server_public  = ext.extension_data.val.val.server_share.key_exchange.val
+                    self.log_info(f"Processing server key share {bytes(Bytes(server_public).hex())}")
+                    self.state.process_key_share(server_public)
+                    self.read_key  = self.state.key_schedule[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET]
+                    self.write_key = self.state.key_schedule[KeySchedule.CLIENT_HANDSHAKE_TRAFFIC_SECRET]
 
-        match handshake.msg_type:
-            case HandshakeType.server_hello:
-                server_hello = handshake.message.val.val
-
-                if server_hello.legacy_session_id_echo == HELLO_RETRY_MAGIC:
-                    raise TLSProtocolError(AlertDescription.illegal_parameter)
-                else:
-                    extensions = server_hello.extensions.val.val
-                    for ext in extensions:
-                        if ext.extension_type == ExtensionType.key_share:
-                            log.info("WAIT_FOR_HELLO: Processing server key share")
-                            self.state.process_key_share(ext.extension_data.val.val.server_share.key_exchange.val)
-            
-                return (TLSHSCState.RECV_DATA, (), {})
-
-            case _:
-                raise TLSProtocolError(AlertDescription.unexpected_message, reply)
+            return (TLSHSCState.WAIT_EE, (), {})
 
 
 
-    @FSM.transition(TLSHSCState.RECV_DATA)
-    def recv_data(self):
+    @FSM.transition(TLSHSCState.WAIT_EE)
+    def wait_ee(self):
+        handshake = self._recv_handshake(HandshakeType.encrypted_extensions)
+        return (TLSHSCState.WAIT_CERT_CR, (), {})
+
+
+    @FSM.transition(TLSHSCState.WAIT_CERT_CR)
+    def wait_cert_cr(self):
+        handshake = self._recv_handshake(HandshakeType.certificate_request, HandshakeType.certificate)
+
+        if handshake.msg_type == HandshakeType.certificate:
+            self.log_info("Received certificate instead; skipping")
+            return (TLSHSCState.WAIT_CV, (), {})
+        
+        return (TLSHSCState.WAIT_CERT, (), {})
+
+
+    @FSM.transition(TLSHSCState.WAIT_CERT)
+    def wait_cert(self):
+        handshake = self._recv_handshake(HandshakeType.certificate)
+        return (TLSHSCState.WAIT_CV, (), {})
+
+
+    @FSM.transition(TLSHSCState.WAIT_CV)
+    def wait_cv(self):
+        handshake = self._recv_handshake(HandshakeType.certificate_verify)
+        return (TLSHSCState.WAIT_FINISHED, (), {})
+
+
+    @FSM.transition(TLSHSCState.WAIT_FINISHED)
+    def wait_finished(self):
+        handshake = self._recv_handshake(HandshakeType.finished)
+        finished  = self.state.finished(self.state.key_schedule[KeySchedule.CLIENT_FINISHED])
+
+        # TODO: MOD REMOVE
+        # finished.message.val.val.verify_data = S2.GreedyBytes(bytes(Bytes(finished.message.val.val.verify_data.val) ^ Bytes(0x01).zfill(32)))
+        tls_inner = TLSInnerPlaintext(
+                        content=[finished],
+                        type=ContentType.handshake,
+                        pad_len=0
+                    )
+        
+        self.log_info("Sending client FINISHED")
+        self.send_encrypted(tls_inner)
+
+        self.state.key_schedule.process_master_secret(self.state.transcript.hash())
+        self.read_key  = self.state.key_schedule[KeySchedule.SERVER_APPLICATION_TRAFFIC_SECRET_0]
+        self.write_key = self.state.key_schedule[KeySchedule.CLIENT_APPLICATION_TRAFFIC_SECRET_0]
+
+        self.state.transcript.append(finished)
+        self.state.key_schedule.process_resumption_secret(self.state.transcript.hash())
+
+
+        return (TLSHSCState.CONNECTED, (), {})
+
+
+    @FSM.transition(TLSHSCState.CONNECTED)
+    def connected(self):
         reply = self.reply_queue.get()
-        self.state.transcript.append(reply)
-        self.state.read_seq_num += 1
 
-        log.info(f"RECV_DATA: Received reply of {reply.type}")
+        self.log_info(f"Received reply of type {reply.type}")
 
         match reply.type:
             case ContentType.change_cipher_spec:
-                return (TLSHSCState.RECV_DATA, (), {})
+                return (TLSHSCState.CONNECTED, (), {})
             
             case ContentType.application_data:
-                log.info(f"RECV_DATA: Processing application data")
-                self.state.decrypt_server_application_data(reply)
-                return (TLSHSCState.RECV_DATA, (), {})
+                tls_inner = self.state.decrypt_application_data(self.read_key, reply)
+                self.state.read_seq_num += 1
+                self.log_info(f"Decrypted application data ({tls_inner.content})")
+                self.application_data_queue.put(tls_inner)
+                return (TLSHSCState.CONNECTED, (), {})
 
             case _:
                 raise TLSProtocolError(AlertDescription.unexpected_message, reply)
-

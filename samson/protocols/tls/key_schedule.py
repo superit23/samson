@@ -1,4 +1,16 @@
 from samson.core.base_object import BaseObject
+from samson.utilities.bytes import Bytes
+import logging
+
+log = logging.getLogger(__name__)
+
+def nice_hex(data):
+    data = Bytes(data).hex()
+    data = bytes(data)
+    data = b'0x' + data
+
+    return data[:8]
+
 
 # https://datatracker.ietf.org/doc/html/rfc8446#section-7.1
 class KeySchedule(BaseObject):
@@ -49,12 +61,14 @@ class KeySchedule(BaseObject):
             )
 
             self[key] = derived_key
+            log.debug(f'{key}: {nice_hex(derived_key)}')
 
 
 
     def create_key(self, key_name, salt, ikm, order, transcript_hash):
         entropy = self.ciphersuite.hkdf.extract(salt, ikm)
         self[key_name] = entropy
+        log.debug(f'{key_name}: {nice_hex(entropy)}')
 
         self.process_keys(entropy, order, transcript_hash)
 
@@ -75,6 +89,7 @@ class KeySchedule(BaseObject):
         )
 
         self[KeySchedule.BINDER_KEY] = derived_key
+        log.debug(f'{KeySchedule.BINDER_KEY}: {nice_hex(derived_key)}')
 
 
 
@@ -121,6 +136,8 @@ class KeySchedule(BaseObject):
 
         self.keys[KeySchedule.SERVER_FINISHED] = self.ciphersuite.derive_secret(self[KeySchedule.SERVER_HANDSHAKE_TRAFFIC_SECRET], b'finished', b'')
         self.keys[KeySchedule.CLIENT_FINISHED] = self.ciphersuite.derive_secret(self[KeySchedule.CLIENT_HANDSHAKE_TRAFFIC_SECRET], b'finished', b'')
+        log.debug(f'{KeySchedule.SERVER_FINISHED}: {nice_hex(self.keys[KeySchedule.SERVER_FINISHED])}')
+        log.debug(f'{KeySchedule.CLIENT_FINISHED}: {nice_hex(self.keys[KeySchedule.CLIENT_FINISHED])}')
 
 
 
@@ -166,3 +183,4 @@ class KeySchedule(BaseObject):
         )
 
         self[KeySchedule.RESUMPTION] = derived_key
+        log.debug(f'{KeySchedule.RESUMPTION}: {nice_hex(derived_key)}')

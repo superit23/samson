@@ -768,6 +768,10 @@ class SizedSerializable(BaseObject):
 
             def __boformat__(self, *args, **kwargs):
                 return _Enum.__repr__(self)
+            
+
+            def native(self):
+                return self.val.native()
 
 
             @property

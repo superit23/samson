@@ -238,6 +238,12 @@ class ContentType(S2.Enum[S2.UInt8]):
     heartbeat = 24
 
 
+class TLSPlaintextHeader(S2):
+    type: ContentType
+    legacy_record_version: ProtocolVersion
+    length: S2.UInt16
+
+
 class TLSPlaintext(S2):
     type: ContentType
     legacy_record_version: ProtocolVersion

@@ -1,5 +1,8 @@
 from samson.core.base_object import BaseObject
 from queue import Queue
+import inspect
+import logging
+
 
 class FiniteStateMachineFinished(Exception):
     pass
@@ -11,7 +14,22 @@ class FiniteStateMachine(BaseObject):
 
         self.FINISHED = object()
         self._register_transitions()
+        self._logger = logging.getLogger(__name__)
     
+
+    def log(self, level: int, text: str, frame_idx: int=1):
+        func_name = inspect.stack()[frame_idx].function
+        caller    = getattr(self, func_name)
+        self._logger.log(level, f'{caller._transition.name}: {text}')
+
+
+    def log_debug(self, text: str, frame_idx: int=2):
+        self.log(logging.DEBUG, text=text, frame_idx=frame_idx)
+
+
+    def log_info(self, text: str, frame_idx: int=2):
+        self.log(logging.INFO, text=text, frame_idx=frame_idx)
+
 
     def _register_transitions(self):
         for attr_name in dir(self):
